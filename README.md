@@ -11,6 +11,7 @@ Aplikasi desktop Windows untuk menyusun jadwal pelajaran sekolah. Semua data ter
 - Ekspor PDF resmi (A4 lanskap) dan Excel, lengkap dengan kop surat dan blok pengesahan.
 - Undo dan redo hingga 50 langkah.
 - Simpan otomatis, cadangan bergilir, cadangan manual, pemulihan versi lama, dan draf pemulihan setelah penutupan tidak wajar.
+- Klik dua kali berkas `.jadwal` di Explorer langsung membukanya; daftar berkas terakhir tampil di layar awal.
 - Tema terang dan gelap, tata letak responsif.
 
 ## Pintasan

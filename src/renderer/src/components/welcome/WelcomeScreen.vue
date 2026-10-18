@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, FolderOpen, FlaskConical, Wand2, WifiOff, ShieldCheck, History } from 'lucide-vue-next'
+import { FileText, CalendarDays, FolderOpen, FlaskConical, Wand2, WifiOff, ShieldCheck, History } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useProjectFile } from '../../composables/useProjectFile'
@@ -75,6 +75,26 @@ const highlights = [
           </p>
         </button>
       </div>
+
+      <section v-if="files.recent.value.length > 0" class="mt-8 animate-rise" style="animation-delay: 180ms">
+        <div class="mb-2 flex items-center justify-between">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">Terakhir dibuka</h2>
+          <button class="text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" @click="files.clearRecent()">
+            Bersihkan daftar
+          </button>
+        </div>
+        <ul class="card divide-y divide-slate-100 overflow-hidden dark:divide-slate-800">
+          <li v-for="r in files.recent.value" :key="r.filePath">
+            <button class="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/50" @click="files.openRecent(r.filePath)">
+              <FileText class="h-4 w-4 shrink-0 text-slate-400" />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">{{ r.name }}</span>
+                <span class="block truncate text-[11px] text-slate-500 dark:text-slate-400">{{ r.filePath }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
 
       <ul class="mt-10 grid gap-5 sm:grid-cols-3">
         <li v-for="h in highlights" :key="h.title" class="flex gap-3">

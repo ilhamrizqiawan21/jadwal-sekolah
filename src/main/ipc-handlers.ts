@@ -18,6 +18,7 @@ import {
 } from './storage'
 import { exportExcelToFile } from './excel-exporter'
 import { generateSchedulePrintHtml } from './pdf-template'
+import { daftarTerbaru, catatTerbaru, hapusSemuaTerbaru } from './recent-files'
 import {
   izinkanProyek,
   pastikanProyekDiizinkan,
@@ -73,7 +74,16 @@ function namaBerkasAman(nama: unknown, ekstensi: string): string {
   return `${tanpaEkt}${ekstensi}`
 }
 
-export function registerIpcHandlers(setDirty: (dirty: boolean) => void, confirmClose: () => void): void {
+export interface AppHooks {
+  setDirty: (dirty: boolean) => void
+  confirmClose: () => void
+  /** Jalur .jadwal yang menunggu dibuka (dari klik dua kali berkas atau argumen baris perintah). */
+  takePendingPath: () => string | null
+}
+
+const recentDir = (): string => path.join(app.getPath('userData'), 'data')
+
+export function registerIpcHandlers({ setDirty, confirmClose, takePendingPath }: AppHooks): void {
   // ------------------------------------------------------------------ Berkas proyek
   handle('project:open', async (event) => {
     const result = await showOpen(event, {
@@ -85,6 +95,33 @@ export function registerIpcHandlers(setDirty: (dirty: boolean) => void, confirmC
     const filePath = result.filePaths[0]
     const data = await loadProject(filePath)
     izinkanProyek(filePath)
+    await catatTerbaru(recentDir(), filePath)
+    return { filePath, data }
+  })
+
+  // ------------------------------------------------------------ Berkas terbaru
+  handle('recent:list', async () => daftarTerbaru(recentDir()))
+  handle('recent:clear', async () => {
+    await hapusSemuaTerbaru(recentDir())
+    return { success: true }
+  })
+  handle('recent:open', async (_event, filePath: string) => {
+    const daftar = await daftarTerbaru(recentDir())
+    if (!daftar.some((r) => path.resolve(r.filePath) === path.resolve(String(filePath)))) {
+      throw new Error('Berkas tidak ada dalam daftar terbaru')
+    }
+    const data = await loadProject(filePath)
+    izinkanProyek(filePath)
+    await catatTerbaru(recentDir(), filePath)
+    return { filePath, data }
+  })
+
+  handle('app:takePendingOpen', async () => {
+    const filePath = takePendingPath()
+    if (!filePath) return null
+    const data = await loadProject(filePath)
+    izinkanProyek(filePath)
+    await catatTerbaru(recentDir(), filePath)
     return { filePath, data }
   })
 
@@ -108,6 +145,7 @@ export function registerIpcHandlers(setDirty: (dirty: boolean) => void, confirmC
       : `${result.filePath}.jadwal`
     izinkanProyek(filePath)
     await saveProject(filePath, data, { backup: 'always' })
+    await catatTerbaru(recentDir(), filePath)
     return filePath
   })
 

@@ -1,10 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ProyekData, InfoCadangan } from '../core/types'
+import type { ProyekData, InfoCadangan, BerkasTerbaru } from '../core/types'
 
 export interface IElectronAPI {
   openProject: () => Promise<{ filePath: string; data: ProyekData } | null>
   saveProject: (filePath: string, data: ProyekData, auto?: boolean) => Promise<{ success: boolean }>
   saveProjectAs: (suggestedName: string, data: ProyekData) => Promise<string | null>
+  listRecent: () => Promise<BerkasTerbaru[]>
+  openRecent: (filePath: string) => Promise<{ filePath: string; data: ProyekData }>
+  clearRecent: () => Promise<{ success: boolean }>
+  takePendingOpen: () => Promise<{ filePath: string; data: ProyekData } | null>
+  onOpenRequested: (listener: () => void) => () => void
 
   listBackups: (filePath: string) => Promise<InfoCadangan[]>
   createSnapshot: (filePath: string, data: ProyekData) => Promise<InfoCadangan>
@@ -31,6 +36,16 @@ const api: IElectronAPI = {
   openProject: () => ipcRenderer.invoke('project:open'),
   saveProject: (filePath, data, auto) => ipcRenderer.invoke('project:save', filePath, data, auto),
   saveProjectAs: (suggestedName, data) => ipcRenderer.invoke('project:saveAs', suggestedName, data),
+
+  listRecent: () => ipcRenderer.invoke('recent:list'),
+  openRecent: (filePath) => ipcRenderer.invoke('recent:open', filePath),
+  clearRecent: () => ipcRenderer.invoke('recent:clear'),
+  takePendingOpen: () => ipcRenderer.invoke('app:takePendingOpen'),
+  onOpenRequested: (listener) => {
+    const wrapped = (): void => listener()
+    ipcRenderer.on('app:open-requested', wrapped)
+    return () => ipcRenderer.removeListener('app:open-requested', wrapped)
+  },
 
   listBackups: (filePath) => ipcRenderer.invoke('backup:list', filePath),
   createSnapshot: (filePath, data) => ipcRenderer.invoke('backup:snapshot', filePath, data),

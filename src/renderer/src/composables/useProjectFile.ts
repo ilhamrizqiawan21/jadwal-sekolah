@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue'
-import type { ProyekData, InfoCadangan } from '@core/types'
+import type { ProyekData, InfoCadangan, BerkasTerbaru } from '@core/types'
 import { useScheduleStore } from '../stores/scheduleStore'
 import { useUiStore } from '../stores/uiStore'
 import { useNotifyStore, pesanGalat } from '../stores/notifyStore'
@@ -13,6 +13,7 @@ const saveError = ref<string | null>(null)
 const lastSavedAt = ref<Date | null>(null)
 const backups = ref<InfoCadangan[]>([])
 const backupsLoading = ref(false)
+const recent = ref<BerkasTerbaru[]>([])
 
 let timer: ReturnType<typeof setInterval> | null = null
 let disposers: Array<() => void> = []
@@ -119,6 +120,51 @@ export function useProjectFile() {
     }
   }
 
+  async function bukaHasil(res: { filePath: string; data: ProyekData } | null): Promise<void> {
+    if (!res) return
+    store.loadProjectData(res.data, res.filePath)
+    lastSavedAt.value = null
+    await getApi()?.clearDraft()
+    ui.setActiveTab('jadwal')
+    notify.success('Berkas berhasil dibuka', res.filePath)
+  }
+
+  async function openRecent(filePath: string): Promise<void> {
+    const api = requireApi()
+    if (!api) return
+    if (!(await confirmLeaveDirty('membuka berkas lain'))) return
+    try {
+      await bukaHasil(await api.openRecent(filePath))
+    } catch (err) {
+      notify.error('Gagal membuka berkas', pesanGalat(err))
+      await refreshRecent()
+    }
+  }
+
+  /** Berkas yang dibuka dari luar aplikasi (klik dua kali .jadwal di Explorer). */
+  async function openPending(): Promise<void> {
+    const api = getApi()
+    if (!api) return
+    try {
+      const res = await api.takePendingOpen()
+      if (!res) return
+      if (!(await confirmLeaveDirty('membuka berkas lain'))) return
+      await bukaHasil(res)
+    } catch (err) {
+      notify.error('Gagal membuka berkas', pesanGalat(err))
+    }
+  }
+
+  async function refreshRecent(): Promise<void> {
+    const api = getApi()
+    recent.value = api ? await api.listRecent().catch(() => []) : []
+  }
+
+  async function clearRecent(): Promise<void> {
+    await getApi()?.clearRecent()
+    recent.value = []
+  }
+
   // ------------------------------------------------------------------ Simpan otomatis
   async function autosaveTick(): Promise<void> {
     const api = getApi()
@@ -149,6 +195,7 @@ export function useProjectFile() {
     const api = getApi()
     if (!api) return
 
+    disposers.push(api.onOpenRequested(() => void openPending()))
     disposers.push(watch(() => store.dirty, (d) => void api.setDirty(d), { immediate: true }))
     disposers.push(
       api.onCloseRequested(async () => {
@@ -334,6 +381,11 @@ export function useProjectFile() {
     backups,
     backupsLoading,
     hasApi: () => getApi() !== null,
+    recent,
+    openRecent,
+    openPending,
+    refreshRecent,
+    clearRecent,
     openProject,
     saveProject,
     saveProjectAs,

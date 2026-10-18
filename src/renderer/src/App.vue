@@ -182,7 +182,9 @@ watch(isMobile, (m) => {
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeyDown)
   files.startAutosave()
+  await files.openPending()
   await files.offerRecovery()
+  await files.refreshRecent()
 })
 
 onUnmounted(() => {

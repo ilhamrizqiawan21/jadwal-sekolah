@@ -140,6 +140,8 @@ R (ADR-0007).
 - [x] Draf pemulihan setelah penutupan tidak wajar, serta konfirmasi saat menutup aplikasi dengan perubahan yang belum disimpan.
 - [x] Antarmuka baru: token desain, font Inter lokal, breadcrumb, navigasi responsif (rel dan laci), transisi halaman, toast dan dialog konfirmasi menggantikan `alert()` dan `confirm()`.
 - [x] Perbaikan bug: undo tanpa sel terpilih, riwayat undo tercemar oleh sel yang tidak berubah, penugasan kehilangan bidang saat disunting, kunci beban huruf kecil, guru terhapus meninggalkan penugasan yatim, wizard menimpa proyek tanpa konfirmasi.
+- [x] Asosiasi berkas `.jadwal` (klik dua kali, instance kedua) dan daftar berkas terbaru di layar awal.
+- [ ] Tidak dikerjakan dengan sengaja: auto-update (aplikasi offline, butuh server rilis).
 
 ---
 

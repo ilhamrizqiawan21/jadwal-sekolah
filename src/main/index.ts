@@ -3,10 +3,12 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
 import { cleanTempFiles } from './storage'
+import { jalurDariArgv } from './recent-files'
 
 let mainWindow: BrowserWindow | null = null
 let hasUnsavedChanges = false
 let closeConfirmed = false
+let pendingPath: string | null = jalurDariArgv(process.argv)
 
 const gotTheLock = app.requestSingleInstanceLock()
 
@@ -71,7 +73,12 @@ function createWindow(): void {
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    const path = jalurDariArgv(argv)
+    if (path && mainWindow) {
+      pendingPath = path
+      mainWindow.webContents.send('app:open-requested')
+    }
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
@@ -82,15 +89,20 @@ if (!gotTheLock) {
     electronApp.setAppUserModelId('com.jadwalsekolah.app')
     hardenSession()
 
-    registerIpcHandlers(
-      (dirty) => {
+    registerIpcHandlers({
+      setDirty: (dirty) => {
         hasUnsavedChanges = dirty
       },
-      () => {
+      confirmClose: () => {
         closeConfirmed = true
         mainWindow?.close()
+      },
+      takePendingPath: () => {
+        const p = pendingPath
+        pendingPath = null
+        return p
       }
-    )
+    })
 
     await cleanTempFiles(join(app.getPath('userData'), 'pemulihan'))
 

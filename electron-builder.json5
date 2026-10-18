@@ -14,6 +14,14 @@
     "!**/*.map"
   ],
   "asar": true,
+  "fileAssociations": [
+    {
+      "ext": "jadwal",
+      "name": "Berkas Jadwal Sekolah",
+      "description": "Berkas Jadwal Sekolah",
+      "role": "Editor"
+    }
+  ],
   "win": {
     "executableName": "JadwalSekolah",
     "icon": "resources/icon.png",

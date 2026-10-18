@@ -145,3 +145,9 @@ export interface InfoCadangan {
   createdAt: string
   manual: boolean
 }
+
+export interface BerkasTerbaru {
+  filePath: string
+  name: string
+  openedAt: string
+}
