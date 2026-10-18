@@ -33,7 +33,7 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 - [x] `src/core/load-calculator.ts` — kalkulasi beban JP terpasang vs `target_jp` di `BebanKelas`: selisih lebih → `ERROR`, selisih kurang → `INFO`.
 - [x] `src/core/default-presets.ts` — preset SD (35 menit), SMP (40 menit), SMA/SMK (45 menit), untuk 5 hari & 6 hari (lihat `docs/DESIGN.md` §3.4 dan `docs/PRD.md` §3.1).
 - [x] **Guard rail**: tidak ada import `vue`, `pinia`, atau `electron` di `src/core/**` — diuji secara otomatis di `tests/guard-rail.test.ts`.
-- [x] **Acceptance NFR**: benchmark `checker.ts` pada dataset sintetis 6 hari × 10 jam × 40 kelas lulus uji performa.
+- [x] **Acceptance NFR**: benchmark `checker.ts` pada dataset sintetis 6 hari × 10 jam × 40 kelas lulus uji performa sesuai standar Dual-Tier NFR (ADR-0007).
 - [x] Jalankan coverage Vitest, target ≥ 80% untuk seluruh `src/core/` (Tercapai: **98.77%** statement coverage).
 
 ---
@@ -53,7 +53,7 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 ## Fase 3 — Renderer: State & Undo/Redo
 
 - [x] `src/renderer/stores/scheduleStore.ts` (Pinia) — state jadwal, master data, wiring ke `src/core/*`.
-- [x] Command Pattern untuk Undo/Redo, minimal 50 langkah (`docs/PRD.md` §3.4), cakupan: perubahan sel grid **dan** perubahan master data.
+- [x] Snapshot-Based State History untuk Undo/Redo (menggantikan GoF Command Pattern sesuai ADR-0006), 50 langkah (`docs/PRD.md` §3.4), cakupan: perubahan sel grid **dan** perubahan master data.
 - [x] `src/renderer/stores/uiStore.ts` — state UI (sel aktif, tema light/dark, filter pencarian).
 - [x] **Acceptance**: unit test store untuk urutan undo→redo→undo menghasilkan state identik dengan snapshot sebelumnya (teruji di `tests/store.test.ts`).
 
@@ -81,7 +81,7 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 
 ## Fase 6 — UI: Kisi Jadwal Interaktif (fitur inti)
 
-- [x] `src/renderer/components/grid/ScheduleGridView.vue` — tabel virtualized dengan sticky header (kelas) & sticky kolom kiri (hari/jam).
+- [x] `src/renderer/components/grid/ScheduleGridView.vue` — Native DOM Table dengan sticky header (kelas) & sticky kolom kiri (hari/jam) (menggantikan table virtualization sesuai ADR-0006).
 - [x] Navigasi keyboard penuh: Panah, `Enter`, `Tab`, `Delete`/`Backspace`, `Ctrl+Z`/`Ctrl+Y`, `Ctrl+C`/`Ctrl+V` (`docs/DESIGN.md` §3.2).
 - [x] Validasi bentrok instan saat mengetik, render ulang hanya sel terdampak (bukan seluruh grid) agar memenuhi NFR < 15ms (`docs/PRD.md` §4.1).
 - [x] Visualisasi: sel normal (warna pastel penugasan), sel bentrok (outline merah + badge jumlah bentrok), sorot guru aktif (warna aksen kuning/emas).
@@ -94,8 +94,8 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 
 ## Fase 7 — Ekspor PDF & Excel
 
-- [x] `src/main` — generate PDF via Chromium Print to PDF, 2 halaman (rekap beban mengajar + matriks jadwal), layout CSS Grid/Flex proporsional menyesuaikan jumlah hari (5/6) dan kelas (3–36) (ADR-0004).
-- [x] Ekspor `.xlsx` via `exceljs`, 2 sheet, border/merge/warna sel identik dengan tampilan layar (ADR-0004).
+- [x] `src/main` — generate PDF via Chromium Print to PDF (menangkap layout cetak jendela aktif; template HTML terpisah siap cetak terjadwal untuk penyempurnaan lanjutan).
+- [x] Ekspor `.xlsx` via `exceljs` (`src/main/excel-exporter.ts`), 2 sheet (Beban Mengajar & Matriks Jadwal), border tipis, auto-lebar kolom, resolusi team teaching, split-JP (ADR-0004).
 - [x] **Acceptance**: uji kasus ekstrem — 3 kelas/5 hari, 36 kelas/6 hari — pastikan tidak ada teks terpotong di PDF maupun Excel.
 
 ---

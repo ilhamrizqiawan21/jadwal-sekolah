@@ -25,12 +25,14 @@ const formGuru = ref<{
   nama: string
   nip: string
   kode_prefiks?: string
+  jabatan?: string
   warna?: string
 }>({
   id: '',
   nama: '',
   nip: '',
   kode_prefiks: '',
+  jabatan: '',
   warna: '#10b981'
 })
 
@@ -64,12 +66,12 @@ function selectGuru(guruId: string): void {
 }
 
 function openAddGuruModal(): void {
-  const nextNum = store.proyek.master.guru.length + 1
   formGuru.value = {
     id: `guru:${Date.now()}`,
     nama: '',
     nip: '',
-    kode_prefiks: `${nextNum}`,
+    kode_prefiks: '',
+    jabatan: 'Guru Mata Pelajaran',
     warna: '#10b981'
   }
   isEditing.value = true
@@ -80,9 +82,10 @@ function editGuru(guru: Guru): void {
   formGuru.value = {
     id: guru.id,
     nama: guru.nama,
-    nip: guru.nip || '',
+    nip: guru.nip_nuptk || '',
     kode_prefiks: guru.kode_prefiks || '',
-    warna: guru.warna || '#10b981'
+    jabatan: guru.jabatan || '',
+    warna: guru.warna_badge || '#10b981'
   }
   isEditing.value = true
   selectedGuruId.value = guru.id
@@ -97,17 +100,19 @@ function saveGuru(): void {
     store.updateGuru({
       ...existing,
       nama: formGuru.value.nama.trim(),
-      nip: formGuru.value.nip.trim(),
-      kode_prefiks: formGuru.value.kode_prefiks?.trim(),
-      warna: formGuru.value.warna
+      nip_nuptk: formGuru.value.nip.trim() || undefined,
+      kode_prefiks: formGuru.value.kode_prefiks?.trim() || undefined,
+      jabatan: formGuru.value.jabatan?.trim() || undefined,
+      warna_badge: formGuru.value.warna
     })
   } else {
     store.addGuru({
       id: formGuru.value.id,
       nama: formGuru.value.nama.trim(),
-      nip: formGuru.value.nip.trim(),
-      kode_prefiks: formGuru.value.kode_prefiks?.trim(),
-      warna: formGuru.value.warna,
+      nip_nuptk: formGuru.value.nip.trim() || undefined,
+      kode_prefiks: formGuru.value.kode_prefiks?.trim() || undefined,
+      jabatan: formGuru.value.jabatan?.trim() || undefined,
+      warna_badge: formGuru.value.warna,
       tidak_bisa: {}
     })
     selectedGuruId.value = formGuru.value.id
@@ -221,14 +226,14 @@ function clearDayUnavailable(hari: string): void {
           <div class="flex items-center space-x-2.5 overflow-hidden">
             <span
               class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-slate-950"
-              :style="{ backgroundColor: guru.warna || '#10b981' }"
+              :style="{ backgroundColor: guru.warna_badge || '#10b981' }"
             >
-              {{ guru.kode_prefiks || guru.nama.charAt(0) }}
+              {{ guru.nama.charAt(0) }}
             </span>
             <div class="truncate">
               <div class="truncate text-slate-800 dark:text-slate-100 font-medium">{{ guru.nama }}</div>
               <div class="text-[10px] text-slate-500 dark:text-slate-400">
-                {{ guru.nip ? `NIP: ${guru.nip}` : 'Non-NIP' }}
+                {{ guru.nip_nuptk ? `NIP: ${guru.nip_nuptk}` : 'Non-NIP' }}
               </div>
             </div>
           </div>
@@ -259,10 +264,10 @@ function clearDayUnavailable(hari: string): void {
           <div class="flex items-center space-x-2">
             <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ activeGuru.nama }}</h3>
             <span
-              v-if="activeGuru.kode_prefiks"
+              v-if="activeGuru.jabatan"
               class="rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-mono border border-slate-200 dark:border-transparent"
             >
-              Kode: {{ activeGuru.kode_prefiks }}
+              {{ activeGuru.jabatan }}
             </span>
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400">

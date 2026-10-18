@@ -14,7 +14,7 @@ import {
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SidebarTab } from '../../stores/uiStore'
-import { MasalahJadwal, Penugasan } from '@core/types'
+import { Masalah, Penugasan } from '@core/types'
 import { parseCellJP } from '@core/cell-parser'
 
 const store = useScheduleStore()
@@ -22,17 +22,13 @@ const uiStore = useUiStore()
 
 const searchQuery = ref<string>('')
 
-// Masalah terkelompokkan
+// Masalah terkelompokkan berdasarkan tingkat resmi
 const errorIssues = computed(() => {
-  return store.hasilPemeriksaan.masalah.filter((m) =>
-    ['bentrok_guru', 'tidak_bisa', 'kode_tidak_dikenal', 'beban_lebih', 'kapasitas_terlampaui'].includes(
-      m.jenis
-    )
-  )
+  return store.hasilPemeriksaan.masalah.filter((m) => m.tingkat === 'error')
 })
 
 const warningIssues = computed(() => {
-  return store.hasilPemeriksaan.masalah.filter((m) => m.jenis === 'beban_kurang')
+  return store.hasilPemeriksaan.masalah.filter((m) => m.tingkat === 'warn' || m.tingkat === 'info')
 })
 
 // Daftar penugasan dengan filter pencarian
@@ -69,13 +65,13 @@ function getTerpasangCount(p: Penugasan): number {
 }
 
 // Lompat ke sel terkait masalah
-function jumpToIssue(issue: MasalahJadwal): void {
+function jumpToIssue(issue: Masalah): void {
   if (!issue.sel || issue.sel.length === 0) return
   const target = issue.sel[0]
   uiStore.setSelectedCell({
-    hari: target.hari,
-    slotId: target.slot_id,
-    kelasId: target.kelas_id
+    hari: target[0],
+    slotId: target[1],
+    kelasId: target[2]
   })
 
   // Pastikan tab aktif adalah jadwal
@@ -84,7 +80,7 @@ function jumpToIssue(issue: MasalahJadwal): void {
   // Scroll sel ke tengah layar
   setTimeout(() => {
     const el = document.getElementById(
-      `cell-${target.hari}-${target.slot_id}-${target.kelas_id}`
+      `cell-${target[0]}-${target[1]}-${target[2]}`
     )
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
@@ -215,7 +211,7 @@ function applyCodeToSelectedCell(kode: string): void {
                 :key="sIdx"
                 class="rounded bg-white dark:bg-slate-950 px-1 py-0.2 border border-slate-200 dark:border-transparent"
               >
-                {{ s.hari }} {{ s.slot_id }} ({{ s.kelas_id.replace('kelas:', '') }})
+                {{ s[0] }} {{ s[1] }} ({{ s[2].replace('kelas:', '') }})
               </span>
             </div>
           </div>

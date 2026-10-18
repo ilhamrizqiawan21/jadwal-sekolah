@@ -158,7 +158,7 @@ function removePenugasan(penugasanId: string): void {
 function getGuruDisplay(a: Penugasan): string {
   if (a.guru_ids && a.guru_ids.length > 1) {
     const names = a.guru_ids
-      .map((gid) => guruList.value.find((g) => g.id === gid)?.nama || gid)
+      .map((gid: string) => guruList.value.find((g) => g.id === gid)?.nama || gid)
       .join(' & ')
     return `[Team Teaching] ${names}`
   }
@@ -248,7 +248,7 @@ function getGuruDisplay(a: Penugasan): string {
                 class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option v-for="g in guruList" :key="g.id" :value="g.id">
-                  {{ g.nama }} {{ g.nip ? `(${g.nip})` : '' }}
+                  {{ g.nama }} {{ (g.nip_nuptk || g.nip) ? `(${g.nip_nuptk || g.nip})` : '' }}
                 </option>
               </select>
             </div>

@@ -63,18 +63,34 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
     }
   }
 
-  const namaKelas = new Map(p.master.kelas.map((k) => [k.id, k.nama]))
-  const namaGuru = new Map(p.master.guru.map((g) => [g.id, g.nama]))
-  const urutKelas = new Map(p.master.kelas.map((k, i) => [k.id, i]))
-  const validKelasIds = new Set(p.master.kelas.map((k) => k.id))
+  const namaKelas = new Map<string, string>()
+  const urutKelas = new Map<string, number>()
+  const validKelasIds = new Set<string>()
+  for (let i = 0; i < p.master.kelas.length; i++) {
+    const k = p.master.kelas[i]
+    namaKelas.set(k.id, k.nama)
+    urutKelas.set(k.id, i)
+    validKelasIds.add(k.id)
+  }
+
+  const namaGuru = new Map<string, string>()
+  for (let i = 0; i < p.master.guru.length; i++) {
+    const g = p.master.guru[i]
+    namaGuru.set(g.id, g.nama)
+  }
 
   // Pre-compute teacher availability set for O(1) lookup: "hari#slotId#guruId"
   const guruTidakBisaSet = new Set<string>()
-  for (const g of p.master.guru) {
-    if (g.tidak_bisa) {
-      for (const [hari, slotIds] of Object.entries(g.tidak_bisa)) {
-        for (const sid of slotIds) {
-          guruTidakBisaSet.add(`${hari}#${sid}#${g.id}`)
+  for (let gi = 0; gi < p.master.guru.length; gi++) {
+    const g = p.master.guru[gi]
+    const tb = g.tidak_bisa
+    if (tb) {
+      for (const hari in tb) {
+        const slotIds = tb[hari]
+        if (slotIds) {
+          for (let si = 0; si < slotIds.length; si++) {
+            guruTidakBisaSet.add(hari + '#' + slotIds[si] + '#' + g.id)
+          }
         }
       }
     }
@@ -82,7 +98,7 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
 
   // Pre-compute code metadata for O(1) loop lookups
   interface CodeMeta {
-    guru_id: string
+    guru_ids: string[]
     gkey: string
     cap: number
   }
@@ -90,17 +106,26 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
   const kapasitas = new Map<string, number>()
 
   for (const [kode, list] of seenCodes.entries()) {
-    const gids = new Set(list.map((a) => a.guru_id))
-    const gkey = gids.size === 1 ? list[0].guru_id : `kode:${kode}`
-    kapasitas.set(gkey, gids.size)
+    const allGids: string[] = []
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i]
+      if (a.guru_ids && a.guru_ids.length > 0) {
+        for (let gi = 0; gi < a.guru_ids.length; gi++) allGids.push(a.guru_ids[gi])
+      } else if (a.guru_id) {
+        allGids.push(a.guru_id)
+      }
+    }
+    const gidsList = Array.from(new Set(allGids))
+    const gkey = gidsList.length === 1 ? gidsList[0] : `kode:${kode}`
+    kapasitas.set(gkey, gidsList.length)
     codeMetaMap.set(kode, {
-      guru_id: list[0].guru_id,
+      guru_ids: gidsList,
       gkey,
-      cap: gids.size
+      cap: gidsList.length
     })
 
-    if (list.length > 1 && gids.size > 1) {
-      const names = Array.from(gids)
+    if (list.length > 1 && gidsList.length > 1) {
+      const names = gidsList
         .map((gid) => namaGuru.get(gid) || '?')
         .sort()
         .join(', ')
@@ -108,7 +133,7 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
         jenis: 'kode_ganda',
         tingkat: 'warn',
         pesan: `Kode ${kode} dipakai oleh lebih dari satu guru (${names}); kapasitas disesuaikan.`,
-        ringkas: `Kode ${kode} dipakai ${gids.size} guru`,
+        ringkas: `Kode ${kode} dipakai ${gidsList.length} guru`,
         sel: [],
         guru_id: list[0].guru_id,
         kode
@@ -116,8 +141,47 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
     }
   }
 
+  // Pre-compute slot labels for fast O(1) string creation
+  const slotLabelMap = new Map<string, string>()
+  const slotHalfLabelMap = new Map<string, string>()
+  for (const hKey in p.struktur_waktu.hari) {
+    const h = p.struktur_waktu.hari[hKey]
+    if (h) {
+      for (let si = 0; si < h.slots.length; si++) {
+        const slot = h.slots[si]
+        const baseKey = hKey + '#' + slot.id
+        if (slot.jp && slot.jp.length > 0) {
+          slotLabelMap.set(baseKey, `${hKey} jam ke-${slot.jp.join('-')}`)
+          for (let hi = 0; hi < slot.jp.length; hi++) {
+            slotHalfLabelMap.set(baseKey + '#' + hi, `${hKey} jam ke-${slot.jp[hi]}`)
+          }
+        } else {
+          slotLabelMap.set(baseKey, `${hKey} ${slot.id}`)
+        }
+      }
+    }
+  }
+
+  function getLabel(h: string, sId: string, half?: number): string {
+    if (half !== undefined) {
+      const v = slotHalfLabelMap.get(h + '#' + sId + '#' + half)
+      if (v) return v
+    }
+    const v = slotLabelMap.get(h + '#' + sId)
+    if (v) return v
+    return labelWaktu(p, h, sId, half)
+  }
+
   // 2. Single-pass over schedule
-  const pakai = new Map<string, Array<[string, string]>>()
+  interface PakaiSlot {
+    hari: string
+    slotId: string
+    half: number
+    gid: string
+    kids: string[]
+    codes: string[]
+  }
+  const pakai = new Map<string, PakaiSlot>()
   const countMap: Record<string, number> = {}
   const cellMap: Record<string, SelKoordinat[]> = {}
   const checkedUnknownCodes = new Set<string>()
@@ -137,65 +201,91 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
         const jpContent = slotRow[kid]
         if (!jpContent) continue
 
-        const sel: SelKoordinat = [hari, slotId, kid]
-        const cellGuruIds = new Set<string>()
+        let sel: SelKoordinat | null = null
+        function getSel(): SelKoordinat {
+          if (!sel) sel = [hari, slotId, kid]
+          return sel
+        }
+
+        const checkedGidsThisCell: string[] = []
 
         const halfLen = Math.max(jpContent.length, 1)
         for (let half = 0; half < halfLen; half++) {
           const kodes = jpContent[half] || []
-          for (const kode of kodes) {
+          for (let ki = 0; ki < kodes.length; ki++) {
+            const kode = kodes[ki]
             if (!kode) continue
             const codeUpper = kode.toUpperCase()
             const meta = codeMetaMap.get(codeUpper)
 
             if (!meta) {
-              const unknownKey = `${hari}#${slotId}#${kid}#${codeUpper}`
+              const unknownKey = hari + '#' + slotId + '#' + kid + '#' + codeUpper
               if (!checkedUnknownCodes.has(unknownKey)) {
                 checkedUnknownCodes.add(unknownKey)
                 const kName = namaKelas.get(kid) || kid
                 tambah({
                   jenis: 'kode_asing',
                   tingkat: 'error',
-                  pesan: `Kode "${codeUpper}" tidak ada di Beban Mengajar (${labelWaktu(p, hari, slotId)}, kelas ${kName}).`,
-                  ringkas: `Kode "${codeUpper}" tidak dikenal · ${kName} · ${labelWaktu(p, hari, slotId)}`,
-                  sel: [sel],
+                  pesan: `Kode "${codeUpper}" tidak ada di Beban Mengajar (${getLabel(hari, slotId)}, kelas ${kName}).`,
+                  ringkas: `Kode "${codeUpper}" tidak dikenal · ${kName} · ${getLabel(hari, slotId)}`,
+                  sel: [getSel()],
                   kode: codeUpper
                 })
               }
               continue
             }
 
-            const pakaiKey = `${hari}#${slotId}#${half}#${meta.gkey}`
-            let list = pakai.get(pakaiKey)
-            if (!list) {
-              list = []
-              pakai.set(pakaiKey, list)
+            const pakaiKey = hari + '#' + slotId + '#' + half + '#' + meta.gkey
+            let slotEntry = pakai.get(pakaiKey)
+            if (!slotEntry) {
+              slotEntry = {
+                hari,
+                slotId,
+                half,
+                gid: meta.gkey,
+                kids: [],
+                codes: []
+              }
+              pakai.set(pakaiKey, slotEntry)
             }
-            list.push([kid, codeUpper])
+            slotEntry.kids.push(kid)
+            slotEntry.codes.push(codeUpper)
 
-            const cntKey = `${codeUpper}:${kid}`
+            const cntKey = codeUpper + ':' + kid
             countMap[cntKey] = (countMap[cntKey] || 0) + 1
 
-            if (half === 0) {
-              if (!cellMap[cntKey]) cellMap[cntKey] = []
-              cellMap[cntKey].push(sel)
+            if (!cellMap[cntKey]) {
+              cellMap[cntKey] = [getSel()]
+            } else {
+              const currentList = cellMap[cntKey]
+              const lastSel = currentList[currentList.length - 1]
+              const thisSel = getSel()
+              if (lastSel[0] !== thisSel[0] || lastSel[1] !== thisSel[1] || lastSel[2] !== thisSel[2]) {
+                currentList.push(thisSel)
+              }
             }
 
-            cellGuruIds.add(meta.guru_id)
+            for (let gi = 0; gi < meta.guru_ids.length; gi++) {
+              const gid = meta.guru_ids[gi]
+              if (checkedGidsThisCell.indexOf(gid) === -1) {
+                checkedGidsThisCell.push(gid)
+              }
+            }
           }
         }
 
-        // Cek jam berhalangan (langsung pada pass yang sama)
-        for (const gid of cellGuruIds) {
-          if (guruTidakBisaSet.has(`${hari}#${slotId}#${gid}`)) {
+        // Cek jam berhalangan
+        for (let gi = 0; gi < checkedGidsThisCell.length; gi++) {
+          const gid = checkedGidsThisCell[gi]
+          if (guruTidakBisaSet.has(hari + '#' + slotId + '#' + gid)) {
             const gName = namaGuru.get(gid) || gid
             const kName = namaKelas.get(kid) || kid
             tambah({
               jenis: 'tidak_bisa',
               tingkat: 'error',
-              pesan: `${gName} meminta jam ini kosong (${labelWaktu(p, hari, slotId)}) tetapi ditempatkan di kelas ${kName}.`,
-              ringkas: `${gName} · ${kName} · ${labelWaktu(p, hari, slotId)}`,
-              sel: [sel],
+              pesan: `${gName} meminta jam ini kosong (${getLabel(hari, slotId)}) tetapi ditempatkan di kelas ${kName}.`,
+              ringkas: `${gName} · ${kName} · ${getLabel(hari, slotId)}`,
+              sel: [getSel()],
               guru_id: gid
             })
           }
@@ -205,30 +295,46 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
   }
 
   // 3. Evaluasi Bentrok (Hanya evaluasi jika total slot dipakai > kapasitas)
-  for (const [pakaiKey, list] of pakai.entries()) {
-    const [hari, slotId, halfStr, gid] = pakaiKey.split('#')
-    const cap = kapasitas.get(gid) || 1
+  for (const slotEntry of pakai.values()) {
+    const kids = slotEntry.kids
+    const cap = kapasitas.get(slotEntry.gid) || 1
+    const { hari, slotId, half, gid } = slotEntry
 
-    // Fast path: jika jumlah penugasan <= kapasitas, tidak mungkin bentrok
-    if (list.length <= cap) continue
+    // Periksa apakah ada guru dalam kode team-teaching yang sedang mengajar solo di slot yang sama
+    let effectiveCap = cap
+    const busyTeachers: string[] = []
+    if (gid.startsWith('kode:')) {
+      const codeKey = gid.slice(5)
+      const meta = codeMetaMap.get(codeKey)
+      if (meta) {
+        for (let i = 0; i < meta.guru_ids.length; i++) {
+          const teacherId = meta.guru_ids[i]
+          const teacherSoloKey = hari + '#' + slotId + '#' + half + '#' + teacherId
+          const soloEntry = pakai.get(teacherSoloKey)
+          if (soloEntry && soloEntry.kids.length > 0) {
+            effectiveCap--
+            const tName = namaGuru.get(teacherId) || teacherId
+            const soloKelasNames = soloEntry.kids.map((k) => namaKelas.get(k) || k).join(', ')
+            busyTeachers.push(`${tName} di kelas ${soloKelasNames}`)
+          }
+        }
+      }
+    }
+    effectiveCap = Math.max(0, effectiveCap)
+
+    // Fast path: jika jumlah penugasan <= kapasitas efektif dan tidak ada potensi over-capacity
+    if (kids.length <= effectiveCap && busyTeachers.length === 0) continue
 
     // Cek jumlah kelas unik
-    const uniqueKelasSet = new Set<string>()
-    for (let i = 0; i < list.length; i++) {
-      uniqueKelasSet.add(list[i][0])
-    }
+    const uniqueKelasSet = new Set<string>(kids)
 
-    if (uniqueKelasSet.size > cap) {
-      const half = parseInt(halfStr, 10)
+    if (uniqueKelasSet.size > effectiveCap) {
       const uniqueKelas = Array.from(uniqueKelasSet).sort(
         (a, b) => (urutKelas.get(a) || 0) - (urutKelas.get(b) || 0)
       )
       const kn = uniqueKelas.map((k) => namaKelas.get(k) || k).join(' dan ')
 
-      const uniqueCodesSet = new Set<string>()
-      for (let i = 0; i < list.length; i++) {
-        uniqueCodesSet.add(list[i][1])
-      }
+      const uniqueCodesSet = new Set<string>(slotEntry.codes)
       const uniqueCodes = Array.from(uniqueCodesSet).sort()
 
       const gNama = gid.startsWith('kode:')
@@ -240,11 +346,12 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
         selArr[i] = [hari, slotId, uniqueKelas[i]]
       }
 
+      const busyNotice = busyTeachers.length > 0 ? ` [${busyTeachers.join(', ')}]` : ''
       tambah({
         jenis: 'bentrok',
         tingkat: 'error',
-        pesan: `BENTROK: ${gNama} (kode ${uniqueCodes.join(', ')}) mengajar di ${kn} sekaligus pada ${labelWaktu(p, hari, slotId, half)}.`,
-        ringkas: `${gNama} · ${kn} · ${labelWaktu(p, hari, slotId, half)}`,
+        pesan: `BENTROK: ${gNama} (kode ${uniqueCodes.join(', ')}) mengajar di ${kn} sekaligus pada ${getLabel(hari, slotId, half)}${busyNotice}.`,
+        ringkas: `${gNama} · ${kn} · ${getLabel(hari, slotId, half)}`,
         sel: selArr,
         guru_id: gid.startsWith('kode:') ? undefined : gid
       })
@@ -292,7 +399,11 @@ export function preview(
     if (a.kode) {
       const codeUpper = a.kode.toUpperCase()
       if (!holders.has(codeUpper)) holders.set(codeUpper, new Set())
-      holders.get(codeUpper)!.add(a.guru_id)
+      if (a.guru_ids && a.guru_ids.length > 0) {
+        for (let gi = 0; gi < a.guru_ids.length; gi++) holders.get(codeUpper)!.add(a.guru_ids[gi])
+      } else if (a.guru_id) {
+        holders.get(codeUpper)!.add(a.guru_id)
+      }
     }
   }
 
@@ -313,6 +424,7 @@ export function preview(
       if (!kk) continue
       const [gkey, cap] = kk
       const a = penugasanByKode.get(kode.toUpperCase())!
+      const pemegang = holders.get(kode.toUpperCase()) || new Set([a.guru_id])
 
       // Cari kelas lain pada slot dan half yang sama
       const kelasLain: string[] = []
@@ -329,7 +441,25 @@ export function preview(
         }
       }
 
-      if (kelasLain.length + 1 > cap && !seenWarnings.has(gkey)) {
+      // Hitung kapasitas efektif dengan memperhitungkan guru pemegang yang mengajar solo di slot ini
+      let effectiveCap = cap
+      if (gkey.startsWith('kode:')) {
+        for (const [k2, otherJP] of Object.entries(slotRow)) {
+          if (k2 !== kelasId && otherJP[half]) {
+            for (const c of otherJP[half]) {
+              const otherA = penugasanByKode.get(c.toUpperCase())
+              if (otherA && otherA.kode.toUpperCase() !== kode.toUpperCase()) {
+                if (pemegang.has(otherA.guru_id)) {
+                  effectiveCap--
+                }
+              }
+            }
+          }
+        }
+      }
+      effectiveCap = Math.max(0, effectiveCap)
+
+      if (kelasLain.length + 1 > effectiveCap && !seenWarnings.has(gkey)) {
         seenWarnings.add(gkey)
         const gNama = gkey.startsWith('kode:')
           ? `Kode ${kode.toUpperCase()}`
@@ -340,11 +470,13 @@ export function preview(
         )
       }
 
-      // Cek apakah guru berhalangan
-      const guru = p.master.guru.find((g) => g.id === a.guru_id)
-      if (guru && guru.tidak_bisa && guru.tidak_bisa[hari]?.includes(slotId)) {
-        const msg = `${guru.nama} meminta jam ini kosong`
-        if (!warnings.includes(msg)) warnings.push(msg)
+      // Cek apakah guru berhalangan (termasuk seluruh pemegang kode team-teaching)
+      for (const gid of pemegang) {
+        const guru = p.master.guru.find((g) => g.id === gid)
+        if (guru && guru.tidak_bisa && guru.tidak_bisa[hari]?.includes(slotId)) {
+          const msg = `${guru.nama} meminta jam ini kosong`
+          if (!warnings.includes(msg)) warnings.push(msg)
+        }
       }
     }
   }

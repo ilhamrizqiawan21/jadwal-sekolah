@@ -11,10 +11,10 @@ import {
   FileSpreadsheet,
   Printer,
   Sparkles,
-  CheckCircle2,
-  AlertCircle,
   Sun,
-  Moon
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-vue-next'
 import { useScheduleStore } from './stores/scheduleStore'
 import { useUiStore, ActiveTab } from './stores/uiStore'
@@ -33,6 +33,14 @@ const uiStore = useUiStore()
 
 const isExporting = ref<boolean>(false)
 const exportStatusMessage = ref<string | null>(null)
+
+const navItems: { id: ActiveTab; label: string; icon: any }[] = [
+  { id: 'jadwal', label: 'Jadwal KBM', icon: Calendar },
+  { id: 'beban', label: 'Beban Mengajar', icon: Layers },
+  { id: 'guru', label: 'Guru & Izin', icon: Users },
+  { id: 'kelas', label: 'Data Kelas', icon: GraduationCap },
+  { id: 'pengaturan', label: 'Pengaturan', icon: Settings }
+]
 
 function showNotification(msg: string): void {
   exportStatusMessage.value = msg
@@ -129,204 +137,227 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen w-screen flex-col bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 overflow-hidden select-none">
-    <!-- Header / Navbar Aplikasi Modern -->
-    <header class="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 px-4 shadow-sm dark:shadow-none">
-      <!-- Identitas & Menu Berkas -->
-      <div class="flex items-center space-x-3">
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 font-bold text-white shadow-lg shadow-emerald-900/40">
-          JS
-        </div>
-        <div>
-          <div class="flex items-center space-x-2">
-            <h1 class="text-sm font-semibold tracking-wide text-slate-800 dark:text-slate-100">
-              {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
-            </h1>
-            <span
-              v-if="store.dirty"
-              class="h-2 w-2 rounded-full bg-amber-400"
-              title="Ada perubahan belum disimpan"
-            />
+  <div class="flex h-screen w-screen bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 overflow-hidden select-none">
+    <!-- Left Navigation Sidebar -->
+    <aside
+      :class="[
+        'flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 transition-all duration-300 ease-in-out shrink-0 z-20',
+        uiStore.isLeftSidebarCollapsed ? 'w-16' : 'w-64'
+      ]"
+    >
+      <!-- Header Sidebar: Logo, Brand & Collapse Toggle -->
+      <div class="flex h-14 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5">
+        <div class="flex items-center space-x-2.5 overflow-hidden">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 font-bold text-white shadow-md shadow-emerald-900/30">
+            JS
           </div>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
-            Tahun Pelajaran {{ store.proyek.meta.tahun_pelajaran }} — Semester {{ store.proyek.meta.semester }}
-            <span v-if="store.filePath" class="text-slate-400 dark:text-slate-500">({{ store.filePath }})</span>
-          </p>
+          <div v-if="!uiStore.isLeftSidebarCollapsed" class="min-w-0 flex-1 truncate">
+            <div class="flex items-center space-x-1.5">
+              <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100">
+                {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
+              </span>
+              <span
+                v-if="store.dirty"
+                class="h-2 w-2 shrink-0 rounded-full bg-amber-400"
+                title="Ada perubahan belum disimpan"
+              />
+            </div>
+            <p class="truncate text-[10px] text-slate-500 dark:text-slate-400">
+              {{ store.proyek.meta.tahun_pelajaran }} • Sem. {{ store.proyek.meta.semester }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Tombol Toggle Buka/Tutup Sidebar -->
+        <button
+          @click="uiStore.toggleLeftSidebar"
+          class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+          :title="uiStore.isLeftSidebarCollapsed ? 'Buka Sidebar' : 'Tutup / Ciutkan Sidebar'"
+        >
+          <PanelLeftOpen v-if="uiStore.isLeftSidebarCollapsed" class="h-4 w-4" />
+          <PanelLeftClose v-else class="h-4 w-4" />
+        </button>
+      </div>
+
+      <!-- Scrollable Sidebar Body (Navigasi & Aksi) -->
+      <div class="flex-1 overflow-y-auto overflow-x-hidden p-2.5 space-y-4">
+        <!-- Section: Menu Utama -->
+        <div>
+          <div
+            v-if="!uiStore.isLeftSidebarCollapsed"
+            class="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+          >
+            Menu Utama
+          </div>
+          <nav class="space-y-1">
+            <button
+              v-for="item in navItems"
+              :key="item.id"
+              @click="uiStore.setActiveTab(item.id)"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 transition-all font-medium text-xs',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3',
+                uiStore.activeTab === item.id
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'
+              ]"
+              :title="item.label"
+            >
+              <component :is="item.icon" class="h-4 w-4 shrink-0" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">{{ item.label }}</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Section: Aksi Dokumen -->
+        <div>
+          <div
+            v-if="!uiStore.isLeftSidebarCollapsed"
+            class="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+          >
+            Dokumen & Berkas
+          </div>
+          <div class="space-y-1">
+            <!-- Buka Berkas -->
+            <button
+              @click="handleOpenFile"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+              ]"
+              title="Buka Berkas Jadwal (.jadwal)"
+            >
+              <FolderOpen class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Buka Berkas</span>
+            </button>
+
+            <!-- Simpan -->
+            <button
+              @click="handleSaveFile"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 text-xs font-medium transition-all',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3',
+                store.dirty
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-900/30'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'
+              ]"
+              :title="store.dirty ? 'Simpan Perubahan (Ctrl+S)' : 'Jadwal Sudah Tersimpan (Ctrl+S)'"
+            >
+              <Save class="h-4 w-4 shrink-0" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">
+                {{ store.dirty ? 'Simpan Perubahan' : 'Simpan' }}
+              </span>
+            </button>
+
+            <!-- Ekspor Excel -->
+            <button
+              @click="handleExportExcel"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+              ]"
+              title="Ekspor Jadwal ke Excel (.xlsx)"
+            >
+              <FileSpreadsheet class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Ekspor Excel</span>
+            </button>
+
+            <!-- Cetak PDF -->
+            <button
+              @click="handlePrintPdf"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+              ]"
+              title="Cetak Dokumen Resmi PDF"
+            >
+              <Printer class="h-4 w-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Cetak PDF</span>
+            </button>
+
+            <!-- Setup Wizard -->
+            <button
+              @click="uiStore.setWizardOpen(true)"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+              ]"
+              title="Setup Proyek Baru"
+            >
+              <Sparkles class="h-4 w-4 shrink-0 text-amber-500" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Setup Wizard</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Navigasi Tabs Utama -->
-      <nav class="flex space-x-1 rounded-xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-800">
-        <button
-          @click="uiStore.setActiveTab('jadwal')"
-          :class="[
-            'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-            uiStore.activeTab === 'jadwal'
-              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
-              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          ]"
-        >
-          <Calendar class="h-4 w-4" />
-          <span>Jadwal</span>
-        </button>
-
-        <button
-          @click="uiStore.setActiveTab('beban')"
-          :class="[
-            'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-            uiStore.activeTab === 'beban'
-              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
-              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          ]"
-        >
-          <Layers class="h-4 w-4" />
-          <span>Beban Mengajar</span>
-        </button>
-
-        <button
-          @click="uiStore.setActiveTab('guru')"
-          :class="[
-            'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-            uiStore.activeTab === 'guru'
-              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
-              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          ]"
-        >
-          <Users class="h-4 w-4" />
-          <span>Guru & Izin</span>
-        </button>
-
-        <button
-          @click="uiStore.setActiveTab('kelas')"
-          :class="[
-            'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-            uiStore.activeTab === 'kelas'
-              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
-              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          ]"
-        >
-          <GraduationCap class="h-4 w-4" />
-          <span>Kelas</span>
-        </button>
-
-        <button
-          @click="uiStore.setActiveTab('pengaturan')"
-          :class="[
-            'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-            uiStore.activeTab === 'pengaturan'
-              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
-              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          ]"
-        >
-          <Settings class="h-4 w-4" />
-          <span>Pengaturan</span>
-        </button>
-      </nav>
-
-      <!-- Aksi Berkas & Notifikasi -->
-      <div class="flex items-center space-x-2">
-        <button
-          @click="uiStore.setWizardOpen(true)"
-          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Setup Proyek Baru"
-        >
-          <Sparkles class="h-3.5 w-3.5 text-emerald-500" />
-          <span>Setup</span>
-        </button>
-
-        <button
-          @click="handleOpenFile"
-          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Buka Berkas Jadwal (.jadwal)"
-        >
-          <FolderOpen class="h-3.5 w-3.5" />
-          <span>Buka</span>
-        </button>
-
-        <button
-          @click="handleSaveFile"
-          :class="[
-            'flex items-center space-x-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all shadow-md',
-            store.dirty
-              ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-900/40'
-              : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-          ]"
-          title="Simpan Jadwal (Ctrl+S)"
-        >
-          <Save class="h-3.5 w-3.5" />
-          <span>Simpan</span>
-        </button>
-
-        <div class="h-4 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
-
-        <button
-          @click="handleExportExcel"
-          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Ekspor format Microsoft Excel (.xlsx)"
-        >
-          <FileSpreadsheet class="h-3.5 w-3.5 text-emerald-500" />
-          <span>Excel</span>
-        </button>
-
-        <button
-          @click="handlePrintPdf"
-          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Cetak Dokumen Resmi PDF"
-        >
-          <Printer class="h-3.5 w-3.5 text-indigo-500" />
-          <span>Cetak PDF</span>
-        </button>
-
-        <!-- Tombol Switch Tema Dark / Light -->
+      <!-- Footer Sidebar: Switch Tema & Info Status -->
+      <div class="border-t border-slate-200 dark:border-slate-800 p-2.5 space-y-1">
+        <!-- Tombol Switch Tema -->
         <button
           @click="uiStore.toggleTheme"
-          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 p-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          :class="[
+            'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+            uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+          ]"
           :title="uiStore.theme === 'dark' ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'"
         >
-          <Sun v-if="uiStore.theme === 'dark'" class="h-4 w-4 text-amber-400" />
-          <Moon v-else class="h-4 w-4 text-indigo-500" />
+          <Sun v-if="uiStore.theme === 'dark'" class="h-4 w-4 shrink-0 text-amber-400" />
+          <Moon v-else class="h-4 w-4 shrink-0 text-indigo-500" />
+          <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">
+            {{ uiStore.theme === 'dark' ? 'Mode Gelap' : 'Mode Terang' }}
+          </span>
         </button>
-      </div>
-    </header>
 
-    <!-- Notifikasi Baris Aksi -->
-    <div
-      v-if="exportStatusMessage"
-      class="bg-emerald-600 px-4 py-1 text-center text-xs font-semibold text-white animate-in slide-in-from-top duration-150"
-    >
-      {{ exportStatusMessage }}
-    </div>
-
-    <!-- Main Workspace Workspace -->
-    <main class="flex flex-1 overflow-hidden">
-      <!-- Tab 1: Kisi Jadwal & Panel Samping Masalah -->
-      <div v-if="uiStore.activeTab === 'jadwal'" class="flex h-full w-full overflow-hidden">
-        <div class="flex-1 overflow-hidden">
-          <ScheduleGridView />
+        <!-- Informasi Berkas Ringkas (Expanded Only) -->
+        <div v-if="!uiStore.isLeftSidebarCollapsed" class="px-3 pt-1 text-[10px] text-slate-400 dark:text-slate-500 truncate">
+          <span v-if="store.filePath" :title="store.filePath">📁 {{ store.filePath.split(/[\\/]/).pop() }}</span>
+          <span v-else>📁 Belum tersimpan di disk</span>
         </div>
-        <IssueSidebar />
+      </div>
+    </aside>
+
+    <!-- Area Konten Utama (Right Workspace) -->
+    <div class="flex flex-1 flex-col overflow-hidden">
+      <!-- Notifikasi Status Aksi (Jika ada toast ekspor/simpan) -->
+      <div
+        v-if="exportStatusMessage"
+        class="bg-emerald-600 px-4 py-1 text-center text-xs font-semibold text-white animate-in slide-in-from-top duration-150 shrink-0"
+      >
+        {{ exportStatusMessage }}
       </div>
 
-      <!-- Tab 2: Beban Mengajar -->
-      <div v-else-if="uiStore.activeTab === 'beban'" class="h-full w-full overflow-hidden">
-        <BebanTab />
-      </div>
+      <!-- Workspace Konten Tab -->
+      <main class="flex flex-1 overflow-hidden">
+        <!-- Tab 1: Kisi Jadwal & Panel Masalah -->
+        <div v-if="uiStore.activeTab === 'jadwal'" class="flex h-full w-full overflow-hidden">
+          <div class="flex-1 overflow-hidden">
+            <ScheduleGridView />
+          </div>
+          <IssueSidebar />
+        </div>
 
-      <!-- Tab 3: Guru & Jam Berhalangan -->
-      <div v-else-if="uiStore.activeTab === 'guru'" class="h-full w-full overflow-hidden">
-        <GuruTab />
-      </div>
+        <!-- Tab 2: Beban Mengajar -->
+        <div v-else-if="uiStore.activeTab === 'beban'" class="h-full w-full overflow-hidden">
+          <BebanTab />
+        </div>
 
-      <!-- Tab 4: Kelas & Rombel -->
-      <div v-else-if="uiStore.activeTab === 'kelas'" class="h-full w-full overflow-hidden">
-        <KelasTab />
-      </div>
+        <!-- Tab 3: Guru & Jam Berhalangan -->
+        <div v-else-if="uiStore.activeTab === 'guru'" class="h-full w-full overflow-hidden">
+          <GuruTab />
+        </div>
 
-      <!-- Tab 5: Pengaturan -->
-      <div v-else-if="uiStore.activeTab === 'pengaturan'" class="h-full w-full overflow-hidden">
-        <PengaturanTab @open-wizard="uiStore.setWizardOpen(true)" />
-      </div>
-    </main>
+        <!-- Tab 4: Kelas & Rombel -->
+        <div v-else-if="uiStore.activeTab === 'kelas'" class="h-full w-full overflow-hidden">
+          <KelasTab />
+        </div>
+
+        <!-- Tab 5: Pengaturan -->
+        <div v-else-if="uiStore.activeTab === 'pengaturan'" class="h-full w-full overflow-hidden">
+          <PengaturanTab @open-wizard="uiStore.setWizardOpen(true)" />
+        </div>
+      </main>
+    </div>
 
     <!-- Modal Wizard Onboarding Setup Sekolah Baru -->
     <SchoolSetupWizard

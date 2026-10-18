@@ -29,6 +29,15 @@ export const useUiStore = defineStore('ui', () => {
   const sidebarTab = ref<SidebarTab>('issues')
   const isWizardOpen = ref<boolean>(false)
   const autoSaveStatus = ref<AutoSaveStatus>('clean')
+  const isLeftSidebarCollapsed = ref<boolean>(false)
+
+  function toggleLeftSidebar(): void {
+    isLeftSidebarCollapsed.value = !isLeftSidebarCollapsed.value
+  }
+
+  function setLeftSidebarCollapsed(collapsed: boolean): void {
+    isLeftSidebarCollapsed.value = collapsed
+  }
 
   function setTheme(mode: ThemeMode): void {
     theme.value = mode
@@ -89,6 +98,7 @@ export const useUiStore = defineStore('ui', () => {
     sidebarTab,
     isWizardOpen,
     autoSaveStatus,
+    isLeftSidebarCollapsed,
     setTheme,
     initTheme,
     toggleTheme,
@@ -98,6 +108,8 @@ export const useUiStore = defineStore('ui', () => {
     setSearchQuery,
     setSidebarTab,
     setWizardOpen,
-    setAutoSaveStatus
+    setAutoSaveStatus,
+    toggleLeftSidebar,
+    setLeftSidebarCollapsed
   }
 })

@@ -60,7 +60,7 @@ const issuesByCellKey = computed(() => {
   for (const issue of store.hasilPemeriksaan.masalah) {
     if (issue.sel && issue.sel.length > 0) {
       for (const s of issue.sel) {
-        const key = `${s.hari}#${s.slot_id}#${s.kelas_id}`
+        const key = `${s[0]}#${s[1]}#${s[2]}`
         if (!map[key]) map[key] = []
         map[key].push(issue.pesan)
       }
@@ -74,7 +74,7 @@ const penugasanByCode = computed(() => {
   const map: Record<string, { warna?: string; guru_id?: string; guru_ids?: string[] }> = {}
   for (const p of store.proyek.master.penugasan) {
     map[p.kode.toUpperCase()] = {
-      warna: p.warna,
+      warna: p.warna_sel,
       guru_id: p.guru_id,
       guru_ids: p.guru_ids
     }
@@ -381,7 +381,7 @@ onUnmounted(() => {
                   :colspan="kelasList.length"
                   class="border-b border-r border-slate-200 dark:border-slate-800/80 bg-amber-50 dark:bg-amber-500/5 px-3 py-1.5 text-center text-[11px] font-medium text-amber-700 dark:text-amber-300/80 tracking-wide"
                 >
-                  — {{ slot.label || (slot.tipe === 'istirahat' ? 'Istirahat' : 'Upacara') }} —
+                  — {{ slot.label || (slot.tipe === 'jeda' ? 'Istirahat' : 'Upacara') }} —
                 </td>
               </tr>
 

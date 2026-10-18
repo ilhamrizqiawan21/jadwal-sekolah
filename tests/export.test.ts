@@ -85,60 +85,12 @@ function generateExtremeProject(polaHari: 5 | 6, jumlahKelas: number): ProyekDat
   }
 }
 
-async function buildWorkbookFromProject(data: ProyekData): Promise<ExcelJS.Workbook> {
-  const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Jadwal Sekolah Desktop'
-
-  // Sheet 1: Beban Mengajar
-  const wsBeban = workbook.addWorksheet('Beban Mengajar')
-  wsBeban.addRow(['DAFTAR BEBAN MENGAJAR GURU'])
-  wsBeban.addRow([data.meta.nama_sekolah.toUpperCase()])
-  wsBeban.addRow([`TAHUN PELAJARAN ${data.meta.tahun_pelajaran} - SEMESTER ${data.meta.semester}`])
-  wsBeban.addRow([])
-
-  const kelasHeaders = data.master.kelas.map((k) => k.nama)
-  wsBeban.addRow(['No', 'Nama Guru', 'Kode', 'Mata Pelajaran', ...kelasHeaders, 'Total JP'])
-
-  const guruMap = new Map(data.master.guru.map((g) => [g.id, g.nama]))
-  data.master.penugasan.forEach((p, index) => {
-    const guruNama = guruMap.get(p.guru_id) || '?'
-    const kelasJP = data.master.kelas.map((k) => p.beban[k.id] || '')
-    const totalJP = Object.values(p.beban).reduce((sum, v) => sum + (v || 0), 0)
-    wsBeban.addRow([index + 1, guruNama, p.kode, p.mapel, ...kelasJP, totalJP || ''])
-  })
-
-  // Sheet 2: Matriks Jadwal
-  const wsJadwal = workbook.addWorksheet('Jadwal Pelajaran')
-  wsJadwal.addRow(['JADWAL PELAJARAN'])
-  wsJadwal.addRow([data.meta.nama_sekolah.toUpperCase()])
-  wsJadwal.addRow([])
-  wsJadwal.addRow(['Hari', 'Jam Ke', 'Waktu', ...kelasHeaders])
-
-  for (const [hari, hariKbm] of Object.entries(data.struktur_waktu.hari)) {
-    if (!hariKbm.aktif) continue
-    for (const slot of hariKbm.slots) {
-      const slotLabel = slot.jp.length > 0 ? slot.jp.join('-') : slot.label
-      const waktuLabel = slot.waktu.join(' | ')
-      const rowData = [hari, slotLabel, waktuLabel]
-      for (const k of data.master.kelas) {
-        const cell = data.jadwal[hari]?.[slot.id]?.[k.id]
-        if (cell && cell[0]) {
-          rowData.push(cell[0].join('/'))
-        } else {
-          rowData.push(slot.tipe === 'kbm' ? '' : slot.label)
-        }
-      }
-      wsJadwal.addRow(rowData)
-    }
-  }
-
-  return workbook
-}
+import { buildExcelWorkbook } from '../src/main/excel-exporter'
 
 describe('Ekspor Excel Kasus Ekstrem (Fase 7 Acceptance)', () => {
   it('berhasil men-generate dokumen Excel untuk kasus kecil: 3 kelas / 5 hari', async () => {
     const data = generateExtremeProject(5, 3)
-    const workbook = await buildWorkbookFromProject(data)
+    const workbook = await buildExcelWorkbook(data)
 
     expect(workbook.worksheets.length).toBe(2)
     const wsBeban = workbook.getWorksheet('Beban Mengajar')
@@ -158,7 +110,7 @@ describe('Ekspor Excel Kasus Ekstrem (Fase 7 Acceptance)', () => {
 
   it('berhasil men-generate dokumen Excel untuk kasus ekstrem besar: 36 kelas / 6 hari tanpa error', async () => {
     const data = generateExtremeProject(6, 36)
-    const workbook = await buildWorkbookFromProject(data)
+    const workbook = await buildExcelWorkbook(data)
 
     expect(workbook.worksheets.length).toBe(2)
     const wsJadwal = workbook.getWorksheet('Jadwal Pelajaran')
@@ -170,5 +122,31 @@ describe('Ekspor Excel Kasus Ekstrem (Fase 7 Acceptance)', () => {
     // Tulis ke buffer
     const buffer = await workbook.xlsx.writeBuffer()
     expect(buffer.byteLength).toBeGreaterThan(10000)
+  })
+
+  it('mengekspor sel split-JP dengan benar (jp1|jp2) tanpa kehilangan JP kedua', async () => {
+    const data = generateExtremeProject(5, 3)
+    // Pasang split JP di kelas pertama pada Senin slot KBM pertama
+    const firstHari = Object.keys(data.struktur_waktu.hari)[0]
+    const kbmSlot = data.struktur_waktu.hari[firstHari].slots.find((s) => s.tipe === 'kbm')!
+    const firstSlot = kbmSlot.id
+    const firstKelas = data.master.kelas[0].id
+
+    data.jadwal[firstHari][firstSlot][firstKelas] = [['1'], ['2']]
+
+    const workbook = await buildExcelWorkbook(data)
+    const wsJadwal = workbook.getWorksheet('Jadwal Pelajaran')
+    expect(wsJadwal).toBeDefined()
+
+    // Cari baris slot KBM tersebut di worksheet
+    let foundCellText: any = null
+    wsJadwal?.eachRow((row) => {
+      if (row.getCell(1).value === firstHari && row.getCell(2).value === kbmSlot.jp.join('-')) {
+        foundCellText = row.getCell(4).value
+      }
+    })
+
+    // Harus berformat '1|2', bukan cuma '1'
+    expect(foundCellText).toBe('1|2')
   })
 })

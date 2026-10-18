@@ -76,4 +76,22 @@ describe('load-calculator', () => {
     expect(lebih[0].tingkat).toBe('error')
     expect(lebih[0].pesan).toContain('terpasang 4 JP, bebannya 2 JP')
   })
+
+  it('mendeteksi beban lebih jika kode dipasang di kelas yang target bebannya 0 atau tidak terdaftar', () => {
+    const p = createMiniProyek()
+    // Kelas c2 (7B) tidak ada di alokasi beban '8A'
+    p.master.kelas.push({ id: 'c2', nama: '7B' })
+    const countMap: Record<string, number> = {
+      '8A:c1': 2, // pas
+      '8A:c2': 2  // salah masuk kelas, target 0
+    }
+    const cellMap: Record<string, [string, string, string][]> = {
+      '8A:c2': [['Senin', 'B1', 'c2']]
+    }
+    const masalah = hitungBeban(p, countMap, cellMap)
+    const lebih = masalah.filter((m) => m.jenis === 'beban_lebih' && m.pesan.includes('7B'))
+    expect(lebih.length).toBe(1)
+    expect(lebih[0].tingkat).toBe('error')
+    expect(lebih[0].pesan).toContain('terpasang 2 JP, bebannya 0 JP')
+  })
 })

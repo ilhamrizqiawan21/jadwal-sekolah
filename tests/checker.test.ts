@@ -193,4 +193,74 @@ describe('checker engine', () => {
     expect(warnings.length).toBeGreaterThan(0)
     expect(warnings[0]).toContain('BENTROK')
   })
+
+  it('mendeteksi jam berhalangan (tidak_bisa) pada seluruh anggota team teaching', () => {
+    const p = createMiniProyek()
+    // g2 dan g3 team-teaching kode '9'
+    p.master.guru.push({
+      id: 'g3',
+      nama: 'Guru C (Team Partner)',
+      tidak_bisa: {
+        Senin: ['B1'] // g3 tidak bisa di Senin B1, sedangkan g2 bisa
+      }
+    })
+    p.master.penugasan.push({
+      id: 'a4',
+      guru_id: 'g3',
+      kode: '9',
+      mapel: 'PKN',
+      beban: { c1: 2 }
+    })
+
+    // Pasang kode 9 di Senin B1 kelas c1
+    p.jadwal = {
+      Senin: {
+        B1: {
+          c1: [['9'], ['9']]
+        }
+      }
+    }
+
+    const hasil = periksa(p)
+    const tidakBisa = hasil.masalah.filter((m) => m.jenis === 'tidak_bisa')
+    expect(tidakBisa.length).toBe(1)
+    expect(tidakBisa[0].guru_id).toBe('g3')
+    expect(tidakBisa[0].pesan).toContain('Guru C (Team Partner)')
+
+    // Uji juga preview() untuk rekan team teaching
+    const prevWarnings = preview(p, 'Senin', 'B1', 'c1', [['9'], ['9']])
+    expect(prevWarnings.some((w) => w.includes('Guru C (Team Partner)'))).toBe(true)
+  })
+
+  it('mendeteksi bentrok jika guru team-teaching juga mengajar solo di kelas lain pada jam yang sama', () => {
+    const p = createMiniProyek()
+    // g1 dan g2 memegang kode TT bersama (kapasitas 2)
+    p.master.penugasan.push(
+      { id: 'att1', guru_id: 'g1', kode: 'TT', mapel: 'PJOK', beban: { c1: 2, c2: 2 } },
+      { id: 'att2', guru_id: 'g2', kode: 'TT', mapel: 'PJOK', beban: { c1: 2, c2: 2 } }
+    )
+    // g1 juga memegang kode solo S1
+    p.master.penugasan.push(
+      { id: 'as1', guru_id: 'g1', kode: 'S1', mapel: 'Fisika', beban: { c3: 2 } }
+    )
+    p.master.kelas.push({ id: 'c3', nama: '7C' })
+
+    // Di Senin B1:
+    // c1 diisi TT, c2 diisi TT (memerlukan 2 guru: g1 & g2)
+    // c3 diisi S1 (g1 mengajar solo lagi!)
+    p.jadwal = {
+      Senin: {
+        B1: {
+          c1: [['TT'], ['TT']],
+          c2: [['TT'], ['TT']],
+          c3: [['S1'], ['S1']]
+        }
+      }
+    }
+
+    const hasil = periksa(p)
+    const bentrok = hasil.masalah.filter((m) => m.jenis === 'bentrok')
+    expect(bentrok.length).toBeGreaterThan(0)
+    expect(bentrok.some((b) => b.pesan.includes('TT') || b.pesan.includes('S1'))).toBe(true)
+  })
 })

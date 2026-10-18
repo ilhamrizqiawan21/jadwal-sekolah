@@ -206,7 +206,7 @@ function saveSettings(): void {
               <div class="text-right">
                 <span v-if="day.aktif" class="text-emerald-600 dark:text-emerald-400 font-mono text-[11px] font-medium">
                   {{ day.slots.filter((s) => s.tipe === 'kbm').length }} Jam Pelajaran
-                  ({{ day.slots.filter((s) => s.tipe === 'istirahat').length }} Istirahat)
+                  ({{ day.slots.filter((s) => s.tipe === 'jeda').length }} Istirahat)
                 </span>
                 <span v-else class="text-slate-400 dark:text-slate-500 text-[11px]">Libur</span>
               </div>

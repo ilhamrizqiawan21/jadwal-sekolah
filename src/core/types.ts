@@ -57,8 +57,11 @@ export interface Guru {
   id: string
   nama: string
   nip_nuptk?: string
+  nip?: string
+  kode_prefiks?: string
   jabatan?: string
   warna_badge?: string
+  warna?: string
   // permintaan jam: { hari: [slot_id, ...] }
   tidak_bisa: Record<string, string[]>
 }
@@ -74,10 +77,13 @@ export interface Kelas {
 export interface Penugasan {
   id: string
   guru_id: string
+  guru_ids?: string[]
   kode: string
   mapel: string
   kelompok?: string
+  kategori?: string
   warna_sel?: string
+  warna?: string
   bbt_jam?: number
   merah?: boolean
   keterangan?: string

@@ -19,6 +19,7 @@ build/
 .vite/
 coverage/
 .nyc_output/
+*.tsbuildinfo
 
 # Logs
 logs/

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -87,7 +87,7 @@ describe('Storage & Persistence Module (src/main/storage.ts)', () => {
     expect(fs.existsSync(filePath)).toBe(true)
 
     // Simulasikan kegagalan saat rename dengan membuat target file read-only / mock error
-    const spyRename = vitest.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('EACCES: permission denied'))
+    const spyRename = vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     await expect(saveProject(filePath, { ...proyek, meta: { ...proyek.meta, nama_sekolah: 'Gagal' } })).rejects.toThrow()
 

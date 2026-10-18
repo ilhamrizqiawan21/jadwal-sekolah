@@ -189,7 +189,7 @@ function getGuruName(guruId: string | null | undefined): string {
                 :key="guru.id"
                 :value="guru.id"
               >
-                {{ guru.nama }} {{ guru.nip ? `(${guru.nip})` : '' }}
+                {{ guru.nama }} {{ guru.nip_nuptk ? `(${guru.nip_nuptk})` : '' }}
               </option>
             </select>
           </div>

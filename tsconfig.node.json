@@ -14,6 +14,7 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/core/**/*",
+    "src/renderer/src/stores/**/*",
     "tests/**/*"
   ]
 }
