@@ -263,4 +263,77 @@ describe('checker engine', () => {
     expect(bentrok.length).toBeGreaterThan(0)
     expect(bentrok.some((b) => b.pesan.includes('TT') || b.pesan.includes('S1'))).toBe(true)
   })
+
+  it('mengabaikan hari yang status aktif: false (tidak menghitung beban dan tidak melaporkan bentrok)', () => {
+    const p = createMiniProyek()
+    // Tambah hari Sabtu dengan aktif: false
+    p.struktur_waktu.hari.Sabtu = {
+      aktif: false,
+      judul: 'SABTU',
+      slots: [
+        { id: 'B1', tipe: 'kbm', label: '', waktu: ['07.00-07.40', '07.40-08.20'], jp: [1, 2] }
+      ]
+    }
+    // Masukkan data jadwal pada hari Sabtu yang tidak aktif
+    p.jadwal.Sabtu = {
+      B1: {
+        c1: [['8A'], ['8A']],
+        c2: [['8A'], ['8A']] // potensi bentrok jika hari dievaluasi
+      }
+    }
+
+    const hasil = periksa(p)
+    // Karena Sabtu tidak aktif, jam terpasang tidak boleh dihitung dari Sabtu
+    expect(hasil.terpasang['8A:c1'] || 0).toBe(0)
+    // Bentrok di hari tidak aktif tidak boleh dilaporkan
+    const bentrok = hasil.masalah.filter((m) => m.jenis === 'bentrok')
+    expect(bentrok.length).toBe(0)
+  })
+
+  it('mengabaikan data sel pada slot bertipe non-kbm (jeda / upacara)', () => {
+    const p = createMiniProyek()
+    // Tambah slot jeda di hari Senin
+    p.struktur_waktu.hari.Senin.slots.push({
+      id: 'JD1',
+      tipe: 'jeda',
+      label: 'Istirahat',
+      waktu: ['09.40-10.00'],
+      jp: []
+    })
+    // Masukkan data jadwal ke slot JD1
+    p.jadwal.Senin = {
+      ...p.jadwal.Senin,
+      JD1: {
+        c1: [['8A'], ['8A']]
+      }
+    }
+
+    const hasil = periksa(p)
+    // Jam pada slot jeda tidak boleh terhitung sebagai beban KBM
+    expect(hasil.terpasang['8A:c1'] || 0).toBe(0)
+  })
+
+  it('tidak memunculkan bentrok palsu saat kode belum memiliki guru dan hanya dipasang di 1 kelas', () => {
+    const p = createMiniProyek()
+    // Penugasan belum ada guru
+    p.master.penugasan.push({
+      id: 'a_noguru',
+      guru_id: '',
+      kode: 'NOGURU',
+      mapel: 'Bimbingan Konseling',
+      beban: { c1: 2 }
+    })
+    p.jadwal = {
+      Senin: {
+        B1: {
+          c1: [['NOGURU'], ['NOGURU']]
+        }
+      }
+    }
+
+    const hasil = periksa(p)
+    const bentrok = hasil.masalah.filter((m) => m.jenis === 'bentrok')
+    expect(bentrok.length).toBe(0)
+  })
 })
+

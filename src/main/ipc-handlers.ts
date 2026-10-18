@@ -1,9 +1,10 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { ProyekData } from '../core/types'
 import { saveProject, loadProject, cleanTempFiles } from './storage'
 import { exportExcelToFile } from './excel-exporter'
+import { generateSchedulePrintHtml } from './pdf-template'
 
 export function registerIpcHandlers(): void {
   // 1. Dialog Pilih Buka Berkas (.jadwal)
@@ -84,26 +85,66 @@ export function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  // 6. Cetak ke PDF via Chromium Print Engine bawaan Electron
-  ipcMain.handle('app:printToPdf', async (event, savePath: string) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window) throw new Error('Jendela aktif tidak ditemukan')
+  // 6. Cetak ke PDF via dokumen cetak resmi
+  ipcMain.handle(
+    'app:printToPdf',
+    async (event, savePath: string, data?: ProyekData) => {
+      if (data) {
+        const htmlContent = generateSchedulePrintHtml(data)
+        const tempHtmlPath = path.join(app.getPath('temp'), `jadwal-print-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.html`)
+        await fs.promises.writeFile(tempHtmlPath, htmlContent, 'utf-8')
 
-    const pdfBuffer = await window.webContents.printToPDF({
-      printBackground: true,
-      landscape: true,
-      pageSize: 'A4',
-      margins: {
-        top: 0.4,
-        bottom: 0.4,
-        left: 0.4,
-        right: 0.4
+        const printWindow = new BrowserWindow({
+          show: false,
+          width: 1400,
+          height: 900,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+          }
+        })
+
+        try {
+          await printWindow.loadFile(tempHtmlPath)
+          const pdfBuffer = await printWindow.webContents.printToPDF({
+            printBackground: true,
+            landscape: true,
+            pageSize: 'A4',
+            margins: {
+              top: 0.3,
+              bottom: 0.3,
+              left: 0.3,
+              right: 0.3
+            }
+          })
+
+          await fs.promises.writeFile(savePath, pdfBuffer)
+          return { success: true, filePath: savePath }
+        } finally {
+          printWindow.destroy()
+          await fs.promises.unlink(tempHtmlPath).catch(() => {})
+        }
       }
-    })
 
-    await fs.promises.writeFile(savePath, pdfBuffer)
-    return { success: true, filePath: savePath }
-  })
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) throw new Error('Jendela aktif tidak ditemukan')
+
+      const pdfBuffer = await window.webContents.printToPDF({
+        printBackground: true,
+        landscape: true,
+        pageSize: 'A4',
+        margins: {
+          top: 0.4,
+          bottom: 0.4,
+          left: 0.4,
+          right: 0.4
+        }
+      })
+
+      await fs.promises.writeFile(savePath, pdfBuffer)
+      return { success: true, filePath: savePath }
+    }
+  )
 
   // 7. Ekspor Excel (.xlsx) dengan exceljs
   ipcMain.handle(

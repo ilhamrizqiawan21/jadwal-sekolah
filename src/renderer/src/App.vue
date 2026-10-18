@@ -6,12 +6,8 @@ import {
   Layers,
   GraduationCap,
   Settings,
-  FolderOpen,
-  Save,
   FileSpreadsheet,
   Printer,
-  Sparkles,
-  Database,
   Sun,
   Moon,
   PanelLeftClose,
@@ -30,12 +26,20 @@ import GuruTab from './components/master/GuruTab.vue'
 import KelasTab from './components/master/KelasTab.vue'
 import BebanTab from './components/master/BebanTab.vue'
 import PengaturanTab from './components/master/PengaturanTab.vue'
+import ExportPreviewModal from './components/export/ExportPreviewModal.vue'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
 
 const isExporting = ref<boolean>(false)
 const exportStatusMessage = ref<string | null>(null)
+const isExportPreviewOpen = ref<boolean>(false)
+const previewInitialTab = ref<'jadwal' | 'beban'>('jadwal')
+
+function openExportPreview(tab: 'jadwal' | 'beban' = 'jadwal'): void {
+  previewInitialTab.value = tab
+  isExportPreviewOpen.value = true
+}
 
 const navItems: { id: ActiveTab; label: string; icon: any }[] = [
   { id: 'jadwal', label: 'Jadwal KBM', icon: Calendar },
@@ -117,7 +121,7 @@ async function handlePrintPdf(): Promise<void> {
       const savePath = await window.api.saveFileDialog('jadwal-sekolah.pdf')
       if (savePath) {
         isExporting.value = true
-        await window.api.printToPdf(savePath)
+        await window.api.printToPdf(savePath, store.proyek)
         isExporting.value = false
         showNotification('✓ Berkas PDF berhasil dicetak')
       }
@@ -127,17 +131,6 @@ async function handlePrintPdf(): Promise<void> {
   } catch (err: any) {
     isExporting.value = false
     alert(`Gagal mencetak PDF: ${err.message}`)
-  }
-}
-
-function handleLoadDummyData(): void {
-  if (
-    confirm(
-      'Muat data contoh lengkap sekolah (14 kelas, 29 guru, penugasan, dan jadwal terisi)? Perubahan saat ini akan digantikan.'
-    )
-  ) {
-    store.loadDummyProject()
-    showNotification('✓ Data contoh lengkap berhasil dimuat')
   }
 }
 
@@ -305,108 +298,28 @@ onUnmounted(() => {
         <!-- Divider Halus Antar Seksi saat Collapsed -->
         <div v-if="uiStore.isLeftSidebarCollapsed" class="w-8 h-px bg-slate-200 dark:bg-slate-800 mx-auto" />
 
-        <!-- Section: Dokumen & Berkas -->
+        <!-- Section: Cetak & Ekspor -->
         <div>
           <div
             v-if="!uiStore.isLeftSidebarCollapsed"
             class="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
           >
-            Dokumen & Berkas
+            Cetak & Ekspor
           </div>
           <div class="space-y-1">
-            <!-- Buka Berkas -->
+            <!-- Cetak & Ekspor Tunggal (Buka Pratinjau A4 Terlebih Dahulu) -->
             <button
-              @click="handleOpenFile"
+              @click="openExportPreview('jadwal')"
               :class="[
                 'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
                 uiStore.isLeftSidebarCollapsed
                   ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2 px-3 space-x-3'
+                  : 'w-full py-2.5 px-3 space-x-3'
               ]"
-              title="Buka Berkas Jadwal (.jadwal)"
-            >
-              <FolderOpen class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Buka Berkas</span>
-            </button>
-
-            <!-- Simpan -->
-            <button
-              @click="handleSaveFile"
-              :class="[
-                'flex items-center rounded-xl font-medium text-xs transition-all',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2 px-3 space-x-3',
-                store.dirty
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-900/30'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'
-              ]"
-              :title="store.dirty ? 'Simpan Perubahan (Ctrl+S)' : 'Jadwal Sudah Tersimpan (Ctrl+S)'"
-            >
-              <Save class="h-4 w-4 shrink-0" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">
-                {{ store.dirty ? 'Simpan Perubahan' : 'Simpan' }}
-              </span>
-            </button>
-
-            <!-- Ekspor Excel -->
-            <button
-              @click="handleExportExcel"
-              :class="[
-                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2 px-3 space-x-3'
-              ]"
-              title="Ekspor Jadwal ke Excel (.xlsx)"
-            >
-              <FileSpreadsheet class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Ekspor Excel</span>
-            </button>
-
-            <!-- Cetak PDF -->
-            <button
-              @click="handlePrintPdf"
-              :class="[
-                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2 px-3 space-x-3'
-              ]"
-              title="Cetak Dokumen Resmi PDF"
+              title="Pratinjau Lembar Cetak Dokumen A4 & Ekspor"
             >
               <Printer class="h-4 w-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Cetak PDF</span>
-            </button>
-
-            <!-- Setup Wizard -->
-            <button
-              @click="uiStore.setWizardOpen(true)"
-              :class="[
-                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2 px-3 space-x-3'
-              ]"
-              title="Setup Proyek Baru"
-            >
-              <Sparkles class="h-4 w-4 shrink-0 text-amber-500" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Setup Wizard</span>
-            </button>
-
-            <!-- Muat Data Contoh -->
-            <button
-              @click="handleLoadDummyData"
-              :class="[
-                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2 px-3 space-x-3'
-              ]"
-              title="Muat Data Contoh Lengkap Sekolah (14 Kelas, 29 Guru, Jadwal Terisi)"
-            >
-              <Database class="h-4 w-4 shrink-0 text-emerald-500" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Data Contoh</span>
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate font-medium">Cetak & Ekspor</span>
             </button>
           </div>
         </div>
@@ -495,6 +408,14 @@ onUnmounted(() => {
     <SchoolSetupWizard
       v-model="uiStore.isWizardOpen"
       @completed="uiStore.setActiveTab('jadwal')"
+    />
+
+    <!-- Modal Pratinjau Dokumen Cetak Resmi Sebelum Simpan File -->
+    <ExportPreviewModal
+      v-model="isExportPreviewOpen"
+      :initial-tab="previewInitialTab"
+      @export-pdf="handlePrintPdf"
+      @export-excel="handleExportExcel"
     />
   </div>
 </template>

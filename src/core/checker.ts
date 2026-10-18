@@ -117,11 +117,12 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
     }
     const gidsList = Array.from(new Set(allGids))
     const gkey = gidsList.length === 1 ? gidsList[0] : `kode:${kode}`
-    kapasitas.set(gkey, gidsList.length)
+    const cap = Math.max(1, gidsList.length)
+    kapasitas.set(gkey, cap)
     codeMetaMap.set(kode, {
       guru_ids: gidsList,
       gkey,
-      cap: gidsList.length
+      cap
     })
 
     if (list.length > 1 && gidsList.length > 1) {
@@ -189,10 +190,25 @@ export function periksa(p: ProyekData): HasilPemeriksaan {
   const hariKeys = Object.keys(p.struktur_waktu.hari)
 
   for (const hari of hariKeys) {
+    const h = p.struktur_waktu.hari[hari]
+    // Abaikan hari libur / tidak aktif dalam struktur waktu
+    if (!h || !h.aktif) continue
+
     const hariRow = p.jadwal[hari]
     if (!hariRow) continue
 
+    // Indeks slot KBM yang valid untuk hari ini
+    const validKbmSlots = new Set<string>()
+    for (let si = 0; si < h.slots.length; si++) {
+      if (h.slots[si].tipe === 'kbm') {
+        validKbmSlots.add(h.slots[si].id)
+      }
+    }
+
     for (const slotId in hariRow) {
+      // Abaikan slot non-KBM (upacara, jeda/istirahat, tutup)
+      if (!validKbmSlots.has(slotId)) continue
+
       const slotRow = hariRow[slotId]
       if (!slotRow) continue
 

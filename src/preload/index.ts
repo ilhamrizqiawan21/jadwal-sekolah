@@ -7,7 +7,7 @@ export interface IElectronAPI {
   saveProject: (filePath: string, data: ProyekData) => Promise<{ success: boolean }>
   loadProject: (filePath: string) => Promise<ProyekData>
   cleanTempFiles: (dirPath: string) => Promise<{ success: boolean }>
-  printToPdf: (savePath: string) => Promise<{ success: boolean; filePath: string }>
+  printToPdf: (savePath: string, data?: ProyekData) => Promise<{ success: boolean; filePath: string }>
   exportExcel: (savePath: string, data: ProyekData) => Promise<{ success: boolean; filePath: string }>
   ping: () => string
 }
@@ -19,7 +19,7 @@ const api: IElectronAPI = {
   saveProject: (filePath, data) => ipcRenderer.invoke('storage:save', filePath, data),
   loadProject: (filePath) => ipcRenderer.invoke('storage:load', filePath),
   cleanTempFiles: (dirPath) => ipcRenderer.invoke('storage:cleanTemp', dirPath),
-  printToPdf: (savePath) => ipcRenderer.invoke('app:printToPdf', savePath),
+  printToPdf: (savePath, data) => ipcRenderer.invoke('app:printToPdf', savePath, data),
   exportExcel: (savePath, data) => ipcRenderer.invoke('app:exportExcel', savePath, data),
   ping: () => 'pong'
 }

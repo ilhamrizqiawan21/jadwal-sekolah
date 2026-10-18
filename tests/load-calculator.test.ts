@@ -94,4 +94,23 @@ describe('load-calculator', () => {
     expect(lebih[0].tingkat).toBe('error')
     expect(lebih[0].pesan).toContain('terpasang 2 JP, bebannya 0 JP')
   })
+
+  it('menampilkan seluruh nama guru untuk penugasan team-teaching (guru_ids)', () => {
+    const p = createMiniProyek()
+    p.master.guru.push({ id: 'g2', nama: 'Guru B', tidak_bisa: {} })
+    p.master.penugasan.push({
+      id: 'att',
+      guru_id: 'g1',
+      guru_ids: ['g1', 'g2'],
+      kode: 'TT',
+      mapel: 'PJOK',
+      beban: { c1: 2 }
+    })
+    // 0 JP terpasang
+    const masalah = hitungBeban(p, {})
+    const ttMasalah = masalah.find((m) => m.kode === 'TT')
+    expect(ttMasalah).toBeDefined()
+    expect(ttMasalah?.pesan).toContain('Guru A & Guru B')
+  })
 })
+

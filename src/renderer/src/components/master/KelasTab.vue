@@ -28,13 +28,17 @@ const formKelas = ref<{
   wali_guru_id: null
 })
 
-// Hitung total jam KBM efektif dalam seminggu
-const totalWeeklySlots = computed(() => {
+// Hitung total jam KBM efektif dalam seminggu (dalam satuan Jam Pelajaran / JP riil)
+const totalWeeklyJP = computed(() => {
   let count = 0
   for (const hari in store.proyek.struktur_waktu.hari) {
     const day = store.proyek.struktur_waktu.hari[hari]
     if (day.aktif) {
-      count += day.slots.filter((s) => s.tipe === 'kbm').length
+      for (const s of day.slots) {
+        if (s.tipe === 'kbm') {
+          count += s.jp.length > 0 ? s.jp.length : 2
+        }
+      }
     }
   }
   return count
@@ -43,16 +47,23 @@ const totalWeeklySlots = computed(() => {
 function getTerpasangCount(kelasId: string): number {
   let count = 0
   for (const hari in store.proyek.jadwal) {
+    const day = store.proyek.struktur_waktu.hari[hari]
+    if (!day || !day.aktif) continue
+
     for (const slotId in store.proyek.jadwal[hari]) {
+      const slotDef = day.slots.find((s) => s.id === slotId)
+      if (!slotDef || slotDef.tipe !== 'kbm') continue
+
       const cell = store.proyek.jadwal[hari][slotId][kelasId]
       if (cell) {
-        if (cell[0].length > 0) count += 0.5
-        if (cell[1].length > 0) count += 0.5
+        if (cell[0] && cell[0].length > 0) count += 1
+        if (cell[1] && cell[1].length > 0) count += 1
       }
     }
   }
   return count
 }
+
 
 function openAddModal(): void {
   const nextOrder = store.proyek.master.kelas.length + 1
@@ -284,14 +295,15 @@ function getGuruName(guruId: string | null | undefined): string {
               <span
                 :class="[
                   'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
-                  getTerpasangCount(k.id) >= totalWeeklySlots
+                  getTerpasangCount(k.id) >= totalWeeklyJP
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
                     : 'bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
                 ]"
               >
-                {{ getTerpasangCount(k.id) }} / {{ totalWeeklySlots }} JP
+                {{ getTerpasangCount(k.id) }} / {{ totalWeeklyJP }} JP
               </span>
             </td>
+
 
             <!-- Aksi Edit / Hapus -->
             <td class="px-4 py-3 text-right">

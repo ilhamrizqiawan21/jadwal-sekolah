@@ -48,17 +48,19 @@ const activeDays = computed(() => {
     .map(([hari, data]) => ({ hari, ...data }))
 })
 
-// Daftar slot KBM maksimal untuk header tabel
+// Daftar slot KBM unik dari seluruh hari aktif untuk header tabel ketersediaan
 const maxSlots = computed(() => {
-  let slots: Array<{ id: string; nama: string }> = []
+  const map = new Map<string, string>()
   for (const day of activeDays.value) {
-    const kbmSlots = day.slots.filter((s) => s.tipe === 'kbm')
-    if (kbmSlots.length > slots.length) {
-      slots = kbmSlots.map((s) => ({ id: s.id, nama: s.label || s.id }))
+    for (const s of day.slots) {
+      if (s.tipe === 'kbm' && !map.has(s.id)) {
+        map.set(s.id, s.label || (s.jp && s.jp.length > 0 ? `Jam ${s.jp.join('-')}` : s.id))
+      }
     }
   }
-  return slots
+  return Array.from(map.entries()).map(([id, nama]) => ({ id, nama }))
 })
+
 
 function selectGuru(guruId: string): void {
   selectedGuruId.value = guruId

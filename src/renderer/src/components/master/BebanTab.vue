@@ -118,6 +118,19 @@ function editPenugasan(a: Penugasan): void {
 function savePenugasan(): void {
   if (!formPenugasan.value.kode.trim() || !formPenugasan.value.mapel.trim()) return
 
+  // Validasi pemilihan guru pengampu
+  if (formPenugasan.value.is_team_teaching) {
+    if (!formPenugasan.value.guru_ids || formPenugasan.value.guru_ids.length === 0) {
+      alert('Harap centang minimal 1 guru untuk penugasan Team Teaching.')
+      return
+    }
+  } else {
+    if (!formPenugasan.value.guru_id) {
+      alert('Harap pilih guru pengampu terlebih dahulu.')
+      return
+    }
+  }
+
   // Bersihkan nilai beban 0
   const cleanBeban: Record<string, number> = {}
   for (const kId in formPenugasan.value.beban) {
@@ -139,6 +152,7 @@ function savePenugasan(): void {
     warna: formPenugasan.value.warna,
     beban: cleanBeban
   }
+
 
   const existingIdx = store.proyek.master.penugasan.findIndex((p) => p.id === payload.id)
   if (existingIdx !== -1) {

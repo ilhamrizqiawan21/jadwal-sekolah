@@ -33,7 +33,10 @@ export function hitungBeban(
 
   for (const [codeUpper, sama] of seen.entries()) {
     const a0 = sama[0]
-    const guruNama = guruMap.get(a0.guru_id) || '?'
+    const guruNama =
+      a0.guru_ids && a0.guru_ids.length > 0
+        ? a0.guru_ids.map((id) => guruMap.get(id) || '?').join(' & ')
+        : guruMap.get(a0.guru_id) || '?'
 
     // Kumpulkan seluruh kelas yang relevan (dari target beban DAN dari yang terpasang di countMap)
     const allKids = new Set<string>()

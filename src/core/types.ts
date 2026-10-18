@@ -29,6 +29,9 @@ export interface Metadata {
   kota_tanggal: string
   pejabat_ttd: PejabatTtd
   kop_base64?: string
+  logo_base64?: string
+  alamat_sekolah?: string
+  notaris?: string
   ttd_base64?: string
 }
 

@@ -33,7 +33,8 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 - [x] `src/core/load-calculator.ts` — kalkulasi beban JP terpasang vs `target_jp` di `BebanKelas`: selisih lebih → `ERROR`, selisih kurang → `INFO`.
 - [x] `src/core/default-presets.ts` — preset SD (35 menit), SMP (40 menit), SMA/SMK (45 menit), untuk 5 hari & 6 hari (lihat `docs/DESIGN.md` §3.4 dan `docs/PRD.md` §3.1).
 - [x] **Guard rail**: tidak ada import `vue`, `pinia`, atau `electron` di `src/core/**` — diuji secara otomatis di `tests/guard-rail.test.ts`.
-- [x] **Acceptance NFR**: benchmark `checker.ts` pada dataset sintetis 6 hari × 10 jam × 40 kelas lulus uji performa sesuai standar Dual-Tier NFR (ADR-0007).
+- [x] **Acceptance NFR**: benchmark `checker.ts` pada dataset sintetis 6 hari × 10 jam × 40 kelas lulus uji performa sesuai standar Dual-Tier NF
+R (ADR-0007).
 - [x] Jalankan coverage Vitest, target ≥ 80% untuk seluruh `src/core/` (Tercapai: **98.77%** statement coverage).
 
 ---
@@ -94,9 +95,10 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 
 ## Fase 7 — Ekspor PDF & Excel
 
-- [x] `src/main` — generate PDF via Chromium Print to PDF (menangkap layout cetak jendela aktif; template HTML terpisah siap cetak terjadwal untuk penyempurnaan lanjutan).
-- [x] Ekspor `.xlsx` via `exceljs` (`src/main/excel-exporter.ts`), 2 sheet (Beban Mengajar & Matriks Jadwal), border tipis, auto-lebar kolom, resolusi team teaching, split-JP (ADR-0004).
-- [x] **Acceptance**: uji kasus ekstrem — 3 kelas/5 hari, 36 kelas/6 hari — pastikan tidak ada teks terpotong di PDF maupun Excel.
+- [x] `src/main/pdf-template.ts` & `src/main/ipc-handlers.ts` — generate PDF via Chromium Print to PDF menggunakan template HTML cetak resmi A4 Landscape terpisah (kop surat dinas, garis ganda, logo base64 tersanitasi, matriks jadwal, dan lampiran beban mengajar guru siap tanda tangan) tanpa menangkap UI viewport aplikasi.
+- [x] Ekspor `.xlsx` via `exceljs` (`src/main/excel-exporter.ts`), 2 sheet (Beban Mengajar & Matriks Jadwal), border tipis, auto-lebar kolom, resolusi team teaching, split-JP, kop surat resmi berlogo, dan blok pengesahan tanda tangan (ADR-0004).
+- [x] `src/renderer/src/components/export/ExportPreviewModal.vue` — modal pratinjau interaktif (*sheet preview*) sebelum menyimpan berkas: menampilkan lembar kertas A4 cetak nyata, tab matriks jadwal vs beban mengajar, zoom in/out/reset, serta tombol pemicu simpan PDF dan ekspor Excel.
+- [x] **Acceptance**: uji kasus ekstrem — 3 kelas/5 hari, 36 kelas/6 hari — pastikan tidak ada teks terpotong di PDF maupun Excel, dan pratinjau tampil proporsional sebelum berkas disimpan.
 
 ---
 
