@@ -1,0 +1,32 @@
+/**
+ * @see https://www.electron.build/configuration/configuration
+ */
+{
+  "appId": "com.jadwalsekolah.app",
+  "productName": "Jadwal Sekolah",
+  "directories": {
+    "buildResources": "build"
+  },
+  "files": [
+    "out/**/*"
+  ],
+  "win": {
+    "executableName": "JadwalSekolah",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  }
+}
