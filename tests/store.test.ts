@@ -21,6 +21,23 @@ describe('Pinia Stores (scheduleStore & uiStore)', () => {
 
     ui.setSelectedCell({ hari: 'Senin', slotId: 'B1', kelasId: 'c1' })
     expect(ui.selectedCell).toEqual({ hari: 'Senin', slotId: 'B1', kelasId: 'c1' })
+
+    // Pengujian state responsivitas sidebar & filter harian
+    expect(ui.isRightSidebarOpen).toBe(true)
+    ui.toggleRightSidebar()
+    expect(ui.isRightSidebarOpen).toBe(false)
+    ui.setRightSidebarOpen(true)
+    expect(ui.isRightSidebarOpen).toBe(true)
+
+    expect(ui.selectedHariFilter).toBe('all')
+    ui.setSelectedHariFilter('Senin')
+    expect(ui.selectedHariFilter).toBe('Senin')
+
+    expect(ui.gridDensity).toBe('compact')
+    ui.toggleGridDensity()
+    expect(ui.gridDensity).toBe('large')
+    ui.setGridDensity('compact')
+    expect(ui.gridDensity).toBe('compact')
   })
 
   it('scheduleStore terinisialisasi dengan preset dan menghitung validasi awal', () => {

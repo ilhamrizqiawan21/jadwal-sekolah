@@ -30,6 +30,9 @@ export const useUiStore = defineStore('ui', () => {
   const isWizardOpen = ref<boolean>(false)
   const autoSaveStatus = ref<AutoSaveStatus>('clean')
   const isLeftSidebarCollapsed = ref<boolean>(false)
+  const isRightSidebarOpen = ref<boolean>(true)
+  const selectedHariFilter = ref<string>('all')
+  const gridDensity = ref<'compact' | 'large'>('compact')
 
   function toggleLeftSidebar(): void {
     isLeftSidebarCollapsed.value = !isLeftSidebarCollapsed.value
@@ -37,6 +40,26 @@ export const useUiStore = defineStore('ui', () => {
 
   function setLeftSidebarCollapsed(collapsed: boolean): void {
     isLeftSidebarCollapsed.value = collapsed
+  }
+
+  function toggleRightSidebar(): void {
+    isRightSidebarOpen.value = !isRightSidebarOpen.value
+  }
+
+  function setRightSidebarOpen(open: boolean): void {
+    isRightSidebarOpen.value = open
+  }
+
+  function setSelectedHariFilter(hari: string): void {
+    selectedHariFilter.value = hari
+  }
+
+  function setGridDensity(density: 'compact' | 'large'): void {
+    gridDensity.value = density
+  }
+
+  function toggleGridDensity(): void {
+    gridDensity.value = gridDensity.value === 'compact' ? 'large' : 'compact'
   }
 
   function setTheme(mode: ThemeMode): void {
@@ -99,6 +122,9 @@ export const useUiStore = defineStore('ui', () => {
     isWizardOpen,
     autoSaveStatus,
     isLeftSidebarCollapsed,
+    isRightSidebarOpen,
+    selectedHariFilter,
+    gridDensity,
     setTheme,
     initTheme,
     toggleTheme,
@@ -110,6 +136,11 @@ export const useUiStore = defineStore('ui', () => {
     setWizardOpen,
     setAutoSaveStatus,
     toggleLeftSidebar,
-    setLeftSidebarCollapsed
+    setLeftSidebarCollapsed,
+    toggleRightSidebar,
+    setRightSidebarOpen,
+    setSelectedHariFilter,
+    setGridDensity,
+    toggleGridDensity
   }
 })

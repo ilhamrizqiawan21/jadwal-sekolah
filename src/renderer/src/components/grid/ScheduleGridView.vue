@@ -2,12 +2,18 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Copy,
   Scissors,
   RotateCcw,
   RotateCw,
-  Search
+  Search,
+  PanelLeftOpen,
+  PanelRightOpen,
+  PanelRightClose,
+  Maximize2,
+  Minimize2
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SelectedCell } from '../../stores/uiStore'
@@ -108,6 +114,77 @@ const namaGuruMap = computed(() => {
   for (const g of store.proyek.master.guru) map.set(g.id, g.nama)
   return map
 })
+
+// Jumlah error & total masalah untuk badge toolbar
+const errorCount = computed(() => {
+  return store.hasilPemeriksaan.masalah.filter((m) => m.tingkat === 'error').length
+})
+const totalIssueCount = computed(() => {
+  return store.hasilPemeriksaan.masalah.length
+})
+
+// Daftar hari yang ditampilkan (filter per hari untuk tampilan fokus & besar)
+const displayedHariList = computed(() => {
+  if (!uiStore.selectedHariFilter || uiStore.selectedHariFilter === 'all') {
+    return activeHariList.value
+  }
+  return activeHariList.value.filter(
+    (h) => h.nama.toLowerCase() === uiStore.selectedHariFilter.toLowerCase()
+  )
+})
+
+// Cek apakah mode tampilan besar & fokus aktif
+const isLargeView = computed(() => uiStore.gridDensity === 'large')
+
+// Peta detail penugasan untuk tampilan sel mode besar (kode -> mapel, guru, warna)
+const penugasanDetailsByCode = computed(() => {
+  const map = new Map<string, { mapel: string; guru: string; warna?: string }>()
+  for (const p of store.proyek.master.penugasan) {
+    const gids = p.guru_ids && p.guru_ids.length > 0 ? p.guru_ids : (p.guru_id ? [p.guru_id] : [])
+    const guru = gids.map((id) => namaGuruMap.value.get(id) || '').filter(Boolean).join(' & ')
+    map.set(p.kode.toUpperCase(), {
+      mapel: p.mapel,
+      guru,
+      warna: p.warna_sel
+    })
+  }
+  return map
+})
+
+// Ambil detail token kode untuk ditampilkan di sel mode besar
+function getCellTokenDetails(raw: string): Array<{ kode: string; mapel: string; guru: string }> {
+  if (!raw) return []
+  const tokens = raw.split(/[\s/|]+/).map((t) => t.trim().toUpperCase()).filter(Boolean)
+  return tokens.map((token) => {
+    const detail = penugasanDetailsByCode.value.get(token)
+    return {
+      kode: token,
+      mapel: detail?.mapel || '',
+      guru: detail?.guru || ''
+    }
+  })
+}
+
+// Fungsi ganti filter hari & otomatis sesuaikan sel aktif serta densitas
+function selectHariFilter(hari: string): void {
+  uiStore.setSelectedHariFilter(hari)
+  if (hari !== 'all') {
+    // Mode harian otomatis membesarkan sel agar fokus dan nyaman
+    uiStore.setGridDensity('large')
+    const targetHari = activeHariList.value.find((h) => h.nama.toLowerCase() === hari.toLowerCase())
+    if (targetHari) {
+      const firstKbm = targetHari.slots.find((s) => s.tipe === 'kbm')
+      const firstKelas = kelasList.value[0]
+      if (firstKbm && firstKelas) {
+        if (uiStore.selectedCell?.hari.toLowerCase() !== hari.toLowerCase()) {
+          selectCell(targetHari.nama, firstKbm.id, firstKelas.id)
+        }
+      }
+    }
+  } else {
+    uiStore.setGridDensity('compact')
+  }
+}
 
 function getSisaJpKelas(p: Penugasan, kelasId?: string): number {
   if (!kelasId) {
@@ -312,8 +389,36 @@ function cancelEdit(): void {
 
 // Navigasi Keyboard
 function handleKeyDown(event: KeyboardEvent): void {
-  // Jika sedang edit teks di input, biarkan Enter / Tab / Escape dihandle di input
+  // Jika fokus sedang di input teks, textarea, select, atau modal wizard terbuka, jangan bajak input
+  const target = event.target as HTMLElement | null
+  if (
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable)
+  ) {
+    return
+  }
+  if (uiStore.isWizardOpen) return
+
+  // Jika sedang edit teks di input sel, biarkan Enter / Tab / Escape dihandle di input
   if (editingCell.value) return
+
+  // Pintasan ganti filter hari (dapat dipanggil kapan saja tanpa harus ada sel aktif)
+  if (event.altKey && !event.ctrlKey && !event.metaKey) {
+    if (event.key === '1') {
+      event.preventDefault()
+      selectHariFilter('all')
+      return
+    }
+    const dayIdx = parseInt(event.key, 10) - 2
+    if (dayIdx >= 0 && dayIdx < activeHariList.value.length) {
+      event.preventDefault()
+      selectHariFilter(activeHariList.value[dayIdx].nama)
+      return
+    }
+  }
 
   const cur = uiStore.selectedCell
   if (!cur) return
@@ -355,8 +460,15 @@ function handleKeyDown(event: KeyboardEvent): void {
     return
   }
 
+  // Tombol Tab dan Shift+Tab
+  if (event.key === 'Tab') {
+    event.preventDefault()
+    moveSelection(event.shiftKey ? 'ShiftTab' : 'Tab')
+    return
+  }
+
   // Tombol panah
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(event.key)) {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
     event.preventDefault()
     moveSelection(event.key)
     return
@@ -373,9 +485,9 @@ function moveSelection(direction: string): void {
   const cur = uiStore.selectedCell
   if (!cur) return
 
-  // Flat list semua sel KBM
+  // Flat list semua sel KBM pada hari yang sedang ditampilkan
   const allKbmSlots: Array<{ hari: string; slotId: string }> = []
-  for (const h of activeHariList.value) {
+  for (const h of displayedHariList.value) {
     for (const s of h.slots) {
       if (s.tipe === 'kbm') {
         allKbmSlots.push({ hari: h.nama, slotId: s.id })
@@ -407,6 +519,13 @@ function moveSelection(direction: string): void {
     } else if (nextSlotIdx < allKbmSlots.length - 1) {
       nextKelasIdx = 0
       nextSlotIdx++
+    }
+  } else if (direction === 'ShiftTab') {
+    if (nextKelasIdx > 0) {
+      nextKelasIdx--
+    } else if (nextSlotIdx > 0) {
+      nextKelasIdx = kelasList.value.length - 1
+      nextSlotIdx--
     }
   }
 
@@ -485,58 +604,172 @@ onUnmounted(() => {
 
 <template>
   <div class="relative flex h-full w-full flex-col overflow-hidden bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100 select-none">
-    <!-- Toolbar Kisi Jadwal -->
-    <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/80 px-4 py-2 text-xs">
-      <div class="flex items-center space-x-3">
-        <span class="font-semibold text-slate-700 dark:text-slate-300">Kisi Jadwal Pelajaran</span>
-        <span class="text-slate-400 dark:text-slate-600">|</span>
-        <span class="text-slate-500 dark:text-slate-400">
-          {{ kelasList.length }} Kelas · {{ activeHariList.length }} Hari Belajar
-        </span>
+    <!-- Toolbar Kisi Jadwal Responsif -->
+    <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/90 px-3 py-2 text-xs shrink-0">
+      <!-- Kolom Kiri: Toggle Sidebar, Judul, & Filter Hari -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Tombol Buka Sidebar jika Collapsed -->
+        <button
+          v-if="uiStore.isLeftSidebarCollapsed"
+          @click="uiStore.toggleLeftSidebar"
+          class="flex items-center justify-center rounded-lg p-1 text-slate-500 hover:text-emerald-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:text-emerald-400 dark:hover:bg-slate-800 transition-colors mr-0.5"
+          title="Buka Sidebar Navigasi (Ctrl+B)"
+        >
+          <PanelLeftOpen class="h-4 w-4" />
+        </button>
+
+        <span class="font-bold text-slate-700 dark:text-slate-200 text-xs hidden sm:inline">Kisi Jadwal</span>
+        <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+
+        <!-- Segmented Tab Pemilih Hari (Fokus Harian) -->
+        <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+          <button
+            @click="selectHariFilter('all')"
+            :class="[
+              'rounded-lg px-2.5 py-1 text-xs font-semibold transition-all',
+              uiStore.selectedHariFilter === 'all'
+                ? 'bg-white text-emerald-700 shadow-xs dark:bg-emerald-600 dark:text-white'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+            ]"
+            title="Tampilkan semua hari pembelajaran (Alt+1)"
+          >
+            Semua Hari
+          </button>
+          <button
+            v-for="(hari, idx) in activeHariList"
+            :key="hari.nama"
+            @click="selectHariFilter(hari.nama)"
+            :class="[
+              'rounded-lg px-2.5 py-1 text-xs font-semibold transition-all capitalize',
+              uiStore.selectedHariFilter.toLowerCase() === hari.nama.toLowerCase()
+                ? 'bg-white text-emerald-700 shadow-xs dark:bg-emerald-600 dark:text-white'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+            ]"
+            :title="`Fokus ke jadwal hari ${hari.nama} (Alt+${idx + 2})`"
+          >
+            {{ hari.nama }}
+          </button>
+        </div>
       </div>
 
-      <div class="flex items-center space-x-2 text-slate-500 dark:text-slate-400">
+      <!-- Kolom Kanan: Mode Ukuran/Densitas, Undo/Redo, & Toggle Panel Masalah -->
+      <div class="flex items-center space-x-2 text-slate-500 dark:text-slate-400 ml-auto">
+        <!-- Toggle Ukuran Tampilan Sel: Kompak vs Besar & Fokus -->
+        <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+          <button
+            @click="uiStore.setGridDensity('compact')"
+            :class="[
+              'flex items-center space-x-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-all',
+              !isLargeView
+                ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-slate-100 font-semibold'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+            ]"
+            title="Tampilan kisi sel kompak (tinggi 40px)"
+          >
+            <Minimize2 class="h-3 w-3" />
+            <span class="hidden md:inline">Kompak</span>
+          </button>
+          <button
+            @click="uiStore.setGridDensity('large')"
+            :class="[
+              'flex items-center space-x-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-all',
+              isLargeView
+                ? 'bg-white text-emerald-700 shadow-xs dark:bg-emerald-600 dark:text-white font-semibold'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+            ]"
+            title="Tampilan kisi sel besar & fokus rincian mapel (tinggi 64px)"
+          >
+            <Maximize2 class="h-3 w-3" />
+            <span class="hidden md:inline">Besar & Fokus</span>
+          </button>
+        </div>
+
+        <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block" />
+
+        <!-- Undo & Redo -->
         <button
           :disabled="!store.canUndo"
           @click="store.undo()"
-          class="flex items-center space-x-1 rounded p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+          class="flex items-center space-x-1 rounded-lg p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
           title="Undo (Ctrl+Z)"
         >
           <RotateCcw class="h-3.5 w-3.5" />
-          <span>Undo</span>
+          <span class="hidden lg:inline text-[11px]">Undo</span>
         </button>
         <button
           :disabled="!store.canRedo"
           @click="store.redo()"
-          class="flex items-center space-x-1 rounded p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+          class="flex items-center space-x-1 rounded-lg p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
           title="Redo (Ctrl+Y)"
         >
           <RotateCw class="h-3.5 w-3.5" />
-          <span>Redo</span>
+          <span class="hidden lg:inline text-[11px]">Redo</span>
+        </button>
+
+        <div class="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+
+        <!-- Toggle Panel Masalah & Kode (Sidebar Kanan) -->
+        <button
+          @click="uiStore.toggleRightSidebar"
+          :class="[
+            'flex items-center space-x-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition-all',
+            uiStore.isRightSidebarOpen
+              ? 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
+              : 'border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          ]"
+          :title="uiStore.isRightSidebarOpen ? 'Tutup Panel Masalah & Kode (Ctrl+I)' : 'Buka Panel Masalah & Kode (Ctrl+I)'"
+        >
+          <PanelRightOpen v-if="!uiStore.isRightSidebarOpen" class="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          <PanelRightClose v-else class="h-3.5 w-3.5 shrink-0" />
+          <span class="hidden md:inline">Panel Masalah</span>
+          <span
+            :class="[
+              'rounded-full px-1.5 py-0.2 text-[10px] font-bold font-mono',
+              errorCount > 0
+                ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400'
+                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+            ]"
+          >
+            {{ errorCount > 0 ? `${errorCount} Bentrok` : 'Bebas Bentrok' }}
+          </span>
         </button>
       </div>
     </div>
 
     <!-- Area Tabel Jadwal dengan Virtual Scroll & Sticky Headers -->
     <div @scroll="closeSuggestions" class="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
-      <table class="border-separate border-spacing-0 text-center text-xs">
+      <table class="border-separate border-spacing-0 text-center text-xs table-fixed">
+        <!-- Kolom Lebar Tetap untuk Menjamin Sticky Alignment Sempurna -->
+        <colgroup>
+          <col class="w-[88px] min-w-[88px] max-w-[88px]" />
+          <col class="w-[110px] min-w-[110px] max-w-[110px]" />
+          <col
+            v-for="kelas in kelasList"
+            :key="kelas.id"
+            :class="isLargeView ? 'w-[130px] min-w-[130px]' : 'w-[90px] min-w-[90px]'"
+          />
+        </colgroup>
+
         <!-- Header Kelas (Sticky Top) -->
         <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950">
           <tr>
             <th
-              class="sticky left-0 top-0 z-30 w-24 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-3 py-3 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+              class="sticky left-0 top-0 z-30 w-[88px] min-w-[88px] max-w-[88px] border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-2 py-3 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider"
             >
               Hari / Jam
             </th>
             <th
-              class="sticky left-24 top-0 z-30 w-28 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-2 py-3 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+              class="sticky left-[88px] top-0 z-30 w-[110px] min-w-[110px] max-w-[110px] border-b border-r-2 border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 px-2 py-3 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)]"
             >
               Waktu KBM
             </th>
             <th
               v-for="kelas in kelasList"
               :key="kelas.id"
-              class="min-w-[90px] border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/95 px-3 py-3 text-xs font-bold text-emerald-600 dark:text-emerald-400"
+              :class="[
+                'border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/95 px-3 py-2.5 font-bold text-emerald-600 dark:text-emerald-400 text-center transition-all',
+                isLargeView ? 'w-[130px] min-w-[130px] text-sm' : 'w-[90px] min-w-[90px] text-xs'
+              ]"
             >
               {{ kelas.nama }}
             </th>
@@ -544,7 +777,7 @@ onUnmounted(() => {
         </thead>
 
         <tbody>
-          <template v-for="hari in activeHariList" :key="hari.nama">
+          <template v-for="hari in displayedHariList" :key="hari.nama">
             <template v-for="(slot, slotIdx) in hari.slots" :key="slot.id">
               <!-- Baris Slot Khusus: Upacara / Istirahat (Colspan penuh) -->
               <tr
@@ -555,13 +788,13 @@ onUnmounted(() => {
                 <td
                   v-if="slotIdx === 0"
                   :rowspan="hari.slots.length"
-                  class="sticky left-0 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-3 py-2 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center align-middle"
+                  class="sticky left-0 z-20 w-[88px] min-w-[88px] max-w-[88px] border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-2 py-2 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center align-middle"
                 >
                   {{ hari.nama }}
                 </td>
 
                 <td
-                  class="sticky left-24 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/90 px-2 py-1.5 font-mono text-[10px] text-slate-600 dark:text-slate-400"
+                  class="sticky left-[88px] z-20 w-[110px] min-w-[110px] max-w-[110px] border-b border-r-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 py-1.5 font-mono text-[10px] text-slate-600 dark:text-slate-400 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)]"
                 >
                   {{ slot.waktu[0] || '-' }}
                 </td>
@@ -580,17 +813,20 @@ onUnmounted(() => {
                 <td
                   v-if="slotIdx === 0"
                   :rowspan="hari.slots.length"
-                  class="sticky left-0 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-3 py-2 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center align-middle"
+                  class="sticky left-0 z-20 w-[88px] min-w-[88px] max-w-[88px] border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-2 py-2 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center align-middle"
                 >
                   {{ hari.nama }}
                 </td>
 
-                <!-- Label Jam & Waktu KBM -->
+                <!-- Label Jam & Waktu KBM (Sticky Split Pane) -->
                 <td
-                  class="sticky left-24 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/90 px-2 py-2 text-center"
+                  class="sticky left-[88px] z-20 w-[110px] min-w-[110px] max-w-[110px] border-b border-r-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-center transition-all shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)]"
+                  :class="isLargeView ? 'py-3' : 'py-2'"
                 >
-                  <div class="font-bold text-slate-800 dark:text-slate-300 text-xs">{{ slot.id }}</div>
-                  <div class="font-mono text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                  <div :class="['font-bold text-slate-800 dark:text-slate-300', isLargeView ? 'text-sm' : 'text-xs']">
+                    {{ slot.id }}
+                  </div>
+                  <div :class="['font-mono text-slate-500 dark:text-slate-400 leading-tight mt-0.5', isLargeView ? 'text-[11px]' : 'text-[10px]']">
                     {{ slot.waktu[0] ? slot.waktu[0].split('-')[0] : '' }}
                   </div>
                 </td>
@@ -603,7 +839,8 @@ onUnmounted(() => {
                   @click="selectCell(hari.nama, slot.id, kelas.id)"
                   @dblclick="startEditing(hari.nama, slot.id, kelas.id)"
                   :class="[
-                    'relative h-10 border-b border-r border-slate-200 dark:border-slate-800/70 p-0 text-center font-mono text-xs font-semibold cursor-pointer transition-all bg-white dark:bg-slate-900/60',
+                    'relative border-b border-r border-slate-200 dark:border-slate-800/70 p-0 text-center font-mono cursor-pointer transition-all bg-white dark:bg-slate-900/60',
+                    isLargeView ? 'h-16 min-h-[64px]' : 'h-10 text-xs font-semibold',
                     // Sel Aktif Terpilih
                     uiStore.selectedCell?.hari === hari.nama &&
                     uiStore.selectedCell?.slotId === slot.id &&
@@ -637,26 +874,54 @@ onUnmounted(() => {
                       @input="onCellInput"
                       @blur="commitEdit"
                       type="text"
-                      class="h-full w-full rounded border border-emerald-500 dark:border-emerald-400 bg-white dark:bg-slate-950 px-1 text-center font-mono text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
+                      :class="[
+                        'h-full w-full rounded border border-emerald-500 dark:border-emerald-400 bg-white dark:bg-slate-950 px-1 text-center font-mono font-bold text-slate-900 dark:text-white focus:outline-none shadow-xs',
+                        isLargeView ? 'text-sm' : 'text-xs'
+                      ]"
                     />
                   </div>
 
                   <!-- Mode Tampilan Normal -->
                   <div
                     v-else
-                    class="flex h-full w-full items-center justify-center p-1"
+                    class="flex h-full w-full flex-col items-center justify-center p-1"
                   >
-                    <span
-                      v-if="getCellRaw(hari.nama, slot.id, kelas.id)"
-                      :class="[
-                        'rounded px-1.5 py-0.5',
-                        hasClash(hari.nama, slot.id, kelas.id)
-                          ? 'text-rose-800 dark:text-rose-300 font-bold'
-                          : 'text-slate-800 dark:text-slate-100'
-                      ]"
-                    >
-                      {{ getCellRaw(hari.nama, slot.id, kelas.id) }}
-                    </span>
+                    <template v-if="getCellRaw(hari.nama, slot.id, kelas.id)">
+                      <!-- Tampilan Sel Mode Besar & Fokus: Kode BOLD + Rincian Mapel / Guru -->
+                      <div v-if="isLargeView" class="flex flex-col items-center justify-center w-full leading-tight">
+                        <span
+                          :class="[
+                            'font-mono font-extrabold text-sm',
+                            hasClash(hari.nama, slot.id, kelas.id)
+                              ? 'text-rose-700 dark:text-rose-300'
+                              : 'text-slate-900 dark:text-white'
+                          ]"
+                        >
+                          {{ getCellRaw(hari.nama, slot.id, kelas.id) }}
+                        </span>
+                        <div
+                          v-for="(detail, dIdx) in getCellTokenDetails(getCellRaw(hari.nama, slot.id, kelas.id)).slice(0, 2)"
+                          :key="`${detail.kode}-${dIdx}`"
+                          class="truncate text-[10px] font-sans font-medium text-slate-500 dark:text-slate-400 max-w-[125px] px-0.5 mt-0.5"
+                          :title="`${detail.mapel}${detail.guru ? ' (' + detail.guru + ')' : ''}`"
+                        >
+                          {{ detail.mapel || detail.guru || '' }}
+                        </div>
+                      </div>
+
+                      <!-- Tampilan Sel Mode Kompak: Kode Biasa -->
+                      <span
+                        v-else
+                        :class="[
+                          'rounded px-1.5 py-0.5',
+                          hasClash(hari.nama, slot.id, kelas.id)
+                            ? 'text-rose-800 dark:text-rose-300 font-bold'
+                            : 'text-slate-800 dark:text-slate-100 font-semibold'
+                        ]"
+                      >
+                        {{ getCellRaw(hari.nama, slot.id, kelas.id) }}
+                      </span>
+                    </template>
 
                     <!-- Badge Peringatan Bentrok Kecil -->
                     <span

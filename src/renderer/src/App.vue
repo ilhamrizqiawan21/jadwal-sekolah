@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import {
   Calendar,
   Users,
@@ -15,7 +15,9 @@ import {
   Sun,
   Moon,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-vue-next'
 import { useScheduleStore } from './stores/scheduleStore'
 import { useUiStore, ActiveTab } from './stores/uiStore'
@@ -139,12 +141,59 @@ function handleLoadDummyData(): void {
   }
 }
 
+function handleGlobalKeyDown(e: KeyboardEvent): void {
+  // Ctrl+S / Cmd+S untuk simpan berkas
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    handleSaveFile()
+    return
+  }
+
+  // Ctrl+B / Cmd+B untuk toggle sidebar kiri
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'b') {
+    e.preventDefault()
+    uiStore.toggleLeftSidebar()
+    return
+  }
+
+  // Ctrl+I / Cmd+I untuk toggle panel masalah kanan (hindari Ctrl+Shift+I yang merupakan DevTools)
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'i') {
+    e.preventDefault()
+    uiStore.toggleRightSidebar()
+    return
+  }
+}
+
+let lastWindowWidth = typeof window !== 'undefined' ? window.innerWidth : 1360
+
+function handleWindowResize(): void {
+  const currentWidth = window.innerWidth
+  // Jika jendela diperkecil melintasi batas 1024px, ciutkan sidebar kiri otomatis
+  if (currentWidth < 1024 && lastWindowWidth >= 1024 && !uiStore.isLeftSidebarCollapsed) {
+    uiStore.setLeftSidebarCollapsed(true)
+  }
+  // Jika jendela diperkecil melintasi batas 1100px, ciutkan panel masalah kanan otomatis
+  if (currentWidth < 1100 && lastWindowWidth >= 1100 && uiStore.isRightSidebarOpen) {
+    uiStore.setRightSidebarOpen(false)
+  }
+  lastWindowWidth = currentWidth
+}
+
 onMounted(() => {
   uiStore.initTheme()
+  window.addEventListener('keydown', handleGlobalKeyDown)
+  window.addEventListener('resize', handleWindowResize)
+  handleWindowResize()
+
   // Jika proyek baru pertama kali dan kelas masih kosong, tawarkan wizard
   if (store.proyek.master.kelas.length === 0 && store.proyek.meta.nama_sekolah === 'Sekolah Baru') {
     uiStore.setWizardOpen(true)
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeyDown)
+  window.removeEventListener('resize', handleWindowResize)
 })
 </script>
 
@@ -153,51 +202,77 @@ onMounted(() => {
     <!-- Left Navigation Sidebar -->
     <aside
       :class="[
-        'flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 transition-all duration-300 ease-in-out shrink-0 z-20',
+        'relative flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 transition-all duration-200 ease-in-out shrink-0 z-20',
         uiStore.isLeftSidebarCollapsed ? 'w-16' : 'w-64'
       ]"
     >
-      <!-- Header Sidebar: Logo, Brand & Collapse Toggle -->
-      <div class="flex h-14 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5">
-        <div class="flex items-center space-x-2.5 overflow-hidden">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 font-bold text-white shadow-md shadow-emerald-900/30">
+      <!-- Floating Edge Toggle Button (Mudah diklik di garis pembatas sidebar) -->
+      <button
+        @click="uiStore.toggleLeftSidebar"
+        class="absolute -right-3 top-4 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900 shadow-md text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:scale-110 transition-all focus:outline-none"
+        :title="uiStore.isLeftSidebarCollapsed ? 'Buka Sidebar (Ctrl+B)' : 'Ciutkan Sidebar (Ctrl+B)'"
+      >
+        <ChevronRight v-if="uiStore.isLeftSidebarCollapsed" class="h-3.5 w-3.5" />
+        <ChevronLeft v-else class="h-3.5 w-3.5" />
+      </button>
+
+      <!-- Header Sidebar: Expanded Mode (Logo + Info Sekolah + Tombol Ciutkan) -->
+      <div
+        v-if="!uiStore.isLeftSidebarCollapsed"
+        class="flex h-14 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5 shrink-0"
+      >
+        <div class="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 font-black text-sm text-white shadow-sm shadow-emerald-900/20">
             JS
           </div>
-          <div v-if="!uiStore.isLeftSidebarCollapsed" class="min-w-0 flex-1 truncate">
+          <div class="min-w-0 flex-1 truncate">
             <div class="flex items-center space-x-1.5">
-              <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100">
+              <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
                 {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
               </span>
               <span
                 v-if="store.dirty"
-                class="h-2 w-2 shrink-0 rounded-full bg-amber-400"
+                class="h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse"
                 title="Ada perubahan belum disimpan"
               />
             </div>
             <p class="truncate text-[10px] text-slate-500 dark:text-slate-400">
-              {{ store.proyek.meta.tahun_pelajaran }} • Sem. {{ store.proyek.meta.semester }}
+              {{ store.proyek.meta.tahun_pelajaran || '2025/2026' }} • Sem. {{ store.proyek.meta.semester || 'GANJIL' }}
             </p>
           </div>
         </div>
 
-        <!-- Tombol Toggle Buka/Tutup Sidebar -->
+        <!-- Tombol Ciutkan Sidebar -->
         <button
           @click="uiStore.toggleLeftSidebar"
-          class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
-          :title="uiStore.isLeftSidebarCollapsed ? 'Buka Sidebar' : 'Tutup / Ciutkan Sidebar'"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/80 transition-colors"
+          title="Ciutkan Sidebar (Ctrl+B)"
         >
-          <PanelLeftOpen v-if="uiStore.isLeftSidebarCollapsed" class="h-4 w-4" />
-          <PanelLeftClose v-else class="h-4 w-4" />
+          <PanelLeftClose class="h-4 w-4" />
+        </button>
+      </div>
+
+      <!-- Header Sidebar: Collapsed Mode (Tombol Buka Terpusat Rapi & Proporsional) -->
+      <div
+        v-else
+        class="flex h-14 items-center justify-center border-b border-slate-200 dark:border-slate-800 px-2 shrink-0"
+      >
+        <button
+          @click="uiStore.toggleLeftSidebar"
+          class="group flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900 dark:hover:bg-emerald-500/15 border border-slate-200/80 dark:border-slate-800 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-all shadow-xs"
+          title="Buka Sidebar (Ctrl+B)"
+        >
+          <PanelLeftOpen class="h-5 w-5 transition-transform group-hover:scale-110" />
         </button>
       </div>
 
       <!-- Scrollable Sidebar Body (Navigasi & Aksi) -->
-      <div class="flex-1 overflow-y-auto overflow-x-hidden p-2.5 space-y-4">
+      <div class="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-4">
         <!-- Section: Menu Utama -->
         <div>
           <div
             v-if="!uiStore.isLeftSidebarCollapsed"
-            class="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+            class="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
           >
             Menu Utama
           </div>
@@ -207,25 +282,34 @@ onMounted(() => {
               :key="item.id"
               @click="uiStore.setActiveTab(item.id)"
               :class="[
-                'flex w-full items-center rounded-xl py-2 transition-all font-medium text-xs',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3',
+                'flex items-center rounded-xl font-medium text-xs transition-all relative',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2.5 px-3 space-x-3',
                 uiStore.activeTab === item.id
-                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 shadow-sm'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 shadow-xs font-semibold'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'
               ]"
               :title="item.label"
             >
+              <div
+                v-if="!uiStore.isLeftSidebarCollapsed && uiStore.activeTab === item.id"
+                class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-emerald-600 dark:bg-emerald-400"
+              />
               <component :is="item.icon" class="h-4 w-4 shrink-0" />
               <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">{{ item.label }}</span>
             </button>
           </nav>
         </div>
 
-        <!-- Section: Aksi Dokumen -->
+        <!-- Divider Halus Antar Seksi saat Collapsed -->
+        <div v-if="uiStore.isLeftSidebarCollapsed" class="w-8 h-px bg-slate-200 dark:bg-slate-800 mx-auto" />
+
+        <!-- Section: Dokumen & Berkas -->
         <div>
           <div
             v-if="!uiStore.isLeftSidebarCollapsed"
-            class="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+            class="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
           >
             Dokumen & Berkas
           </div>
@@ -234,8 +318,10 @@ onMounted(() => {
             <button
               @click="handleOpenFile"
               :class="[
-                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2 px-3 space-x-3'
               ]"
               title="Buka Berkas Jadwal (.jadwal)"
             >
@@ -247,8 +333,10 @@ onMounted(() => {
             <button
               @click="handleSaveFile"
               :class="[
-                'flex w-full items-center rounded-xl py-2 text-xs font-medium transition-all',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3',
+                'flex items-center rounded-xl font-medium text-xs transition-all',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2 px-3 space-x-3',
                 store.dirty
                   ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-900/30'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'
@@ -265,8 +353,10 @@ onMounted(() => {
             <button
               @click="handleExportExcel"
               :class="[
-                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2 px-3 space-x-3'
               ]"
               title="Ekspor Jadwal ke Excel (.xlsx)"
             >
@@ -278,8 +368,10 @@ onMounted(() => {
             <button
               @click="handlePrintPdf"
               :class="[
-                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2 px-3 space-x-3'
               ]"
               title="Cetak Dokumen Resmi PDF"
             >
@@ -291,8 +383,10 @@ onMounted(() => {
             <button
               @click="uiStore.setWizardOpen(true)"
               :class="[
-                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2 px-3 space-x-3'
               ]"
               title="Setup Proyek Baru"
             >
@@ -304,8 +398,10 @@ onMounted(() => {
             <button
               @click="handleLoadDummyData"
               :class="[
-                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed
+                  ? 'h-10 w-10 mx-auto justify-center'
+                  : 'w-full py-2 px-3 space-x-3'
               ]"
               title="Muat Data Contoh Lengkap Sekolah (14 Kelas, 29 Guru, Jadwal Terisi)"
             >
@@ -317,27 +413,38 @@ onMounted(() => {
       </div>
 
       <!-- Footer Sidebar: Switch Tema & Info Status -->
-      <div class="border-t border-slate-200 dark:border-slate-800 p-2.5 space-y-1">
+      <div class="border-t border-slate-200 dark:border-slate-800 p-2 space-y-1.5 shrink-0">
         <!-- Tombol Switch Tema -->
         <button
           @click="uiStore.toggleTheme"
           :class="[
-            'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-            uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+            'flex items-center rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+            uiStore.isLeftSidebarCollapsed
+              ? 'h-10 w-10 mx-auto justify-center'
+              : 'w-full py-2 px-3 justify-between'
           ]"
           :title="uiStore.theme === 'dark' ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'"
         >
-          <Sun v-if="uiStore.theme === 'dark'" class="h-4 w-4 shrink-0 text-amber-400" />
-          <Moon v-else class="h-4 w-4 shrink-0 text-indigo-500" />
-          <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">
-            {{ uiStore.theme === 'dark' ? 'Mode Gelap' : 'Mode Terang' }}
+          <div class="flex items-center space-x-2.5">
+            <Sun v-if="uiStore.theme === 'dark'" class="h-4 w-4 shrink-0 text-amber-400" />
+            <Moon v-else class="h-4 w-4 shrink-0 text-indigo-500" />
+            <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">
+              {{ uiStore.theme === 'dark' ? 'Mode Gelap' : 'Mode Terang' }}
+            </span>
+          </div>
+          <span
+            v-if="!uiStore.isLeftSidebarCollapsed"
+            class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+          >
+            {{ uiStore.theme }}
           </span>
         </button>
 
         <!-- Informasi Berkas Ringkas (Expanded Only) -->
-        <div v-if="!uiStore.isLeftSidebarCollapsed" class="px-3 pt-1 text-[10px] text-slate-400 dark:text-slate-500 truncate">
-          <span v-if="store.filePath" :title="store.filePath">📁 {{ store.filePath.split(/[\\/]/).pop() }}</span>
-          <span v-else>📁 Belum tersimpan di disk</span>
+        <div v-if="!uiStore.isLeftSidebarCollapsed" class="px-2 pt-0.5 text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center space-x-1.5">
+          <span class="truncate" :title="store.filePath || 'Belum disimpan'">
+            📁 {{ store.filePath ? store.filePath.split(/[\\/]/).pop() : 'Belum tersimpan di disk' }}
+          </span>
         </div>
       </div>
     </aside>
@@ -359,7 +466,7 @@ onMounted(() => {
           <div class="flex-1 overflow-hidden">
             <ScheduleGridView />
           </div>
-          <IssueSidebar />
+          <IssueSidebar v-if="uiStore.isRightSidebarOpen" />
         </div>
 
         <!-- Tab 2: Beban Mengajar -->

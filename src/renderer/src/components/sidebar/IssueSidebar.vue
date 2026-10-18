@@ -10,7 +10,8 @@ import {
   Eye,
   PlusCircle,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  PanelRightClose
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SidebarTab } from '../../stores/uiStore'
@@ -58,8 +59,9 @@ function getTotalBeban(p: Penugasan): number {
 
 function getTerpasangCount(p: Penugasan): number {
   let count = 0
+  const kodeUpper = p.kode.toUpperCase()
   for (const k of store.proyek.master.kelas) {
-    count += store.terpasang[`${p.kode}:${k.id}`] || 0
+    count += store.terpasang[`${kodeUpper}:${k.id}`] || 0
   }
   return count
 }
@@ -68,6 +70,15 @@ function getTerpasangCount(p: Penugasan): number {
 function jumpToIssue(issue: Masalah): void {
   if (!issue.sel || issue.sel.length === 0) return
   const target = issue.sel[0]
+
+  // Pastikan hari sel masalah tampil di kisi jika sedang ada filter hari aktif
+  if (
+    uiStore.selectedHariFilter !== 'all' &&
+    uiStore.selectedHariFilter.toLowerCase() !== target[0].toLowerCase()
+  ) {
+    uiStore.setSelectedHariFilter(target[0])
+  }
+
   uiStore.setSelectedCell({
     hari: target[0],
     slotId: target[1],
@@ -149,6 +160,15 @@ function applyCodeToSelectedCell(kode: string): void {
         <span class="rounded bg-slate-200 dark:bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono text-slate-700 dark:text-slate-400">
           {{ store.proyek.master.penugasan.length }}
         </span>
+      </button>
+
+      <!-- Tombol Tutup Panel (Fokus ke Jadwal Penuh) -->
+      <button
+        @click="uiStore.toggleRightSidebar"
+        class="flex items-center justify-center rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors ml-1 self-center"
+        title="Tutup Panel Masalah & Kode (Ctrl+I)"
+      >
+        <PanelRightClose class="h-4 w-4" />
       </button>
     </div>
 
