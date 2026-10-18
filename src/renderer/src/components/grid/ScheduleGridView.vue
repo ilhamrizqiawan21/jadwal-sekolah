@@ -295,22 +295,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative flex h-full w-full flex-col overflow-hidden bg-slate-900 select-none">
+  <div class="relative flex h-full w-full flex-col overflow-hidden bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100 select-none">
     <!-- Toolbar Kisi Jadwal -->
-    <div class="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-4 py-2 text-xs">
+    <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/80 px-4 py-2 text-xs">
       <div class="flex items-center space-x-3">
-        <span class="font-semibold text-slate-300">Kisi Jadwal Pelajaran</span>
-        <span class="text-slate-600">|</span>
-        <span class="text-slate-400">
+        <span class="font-semibold text-slate-700 dark:text-slate-300">Kisi Jadwal Pelajaran</span>
+        <span class="text-slate-400 dark:text-slate-600">|</span>
+        <span class="text-slate-500 dark:text-slate-400">
           {{ kelasList.length }} Kelas · {{ activeHariList.length }} Hari Belajar
         </span>
       </div>
 
-      <div class="flex items-center space-x-2 text-slate-400">
+      <div class="flex items-center space-x-2 text-slate-500 dark:text-slate-400">
         <button
           :disabled="!store.canUndo"
           @click="store.undo()"
-          class="flex items-center space-x-1 rounded p-1.5 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30"
+          class="flex items-center space-x-1 rounded p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
           title="Undo (Ctrl+Z)"
         >
           <RotateCcw class="h-3.5 w-3.5" />
@@ -319,7 +319,7 @@ onUnmounted(() => {
         <button
           :disabled="!store.canRedo"
           @click="store.redo()"
-          class="flex items-center space-x-1 rounded p-1.5 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30"
+          class="flex items-center space-x-1 rounded p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
           title="Redo (Ctrl+Y)"
         >
           <RotateCw class="h-3.5 w-3.5" />
@@ -329,25 +329,25 @@ onUnmounted(() => {
     </div>
 
     <!-- Area Tabel Jadwal dengan Virtual Scroll & Sticky Headers -->
-    <div class="flex-1 overflow-auto bg-slate-900">
+    <div class="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
       <table class="border-separate border-spacing-0 text-center text-xs">
         <!-- Header Kelas (Sticky Top) -->
-        <thead class="sticky top-0 z-20 bg-slate-950">
+        <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950">
           <tr>
             <th
-              class="sticky left-0 top-0 z-30 w-24 border-b border-r border-slate-800 bg-slate-950 px-3 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider"
+              class="sticky left-0 top-0 z-30 w-24 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-3 py-3 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider"
             >
               Hari / Jam
             </th>
             <th
-              class="sticky left-24 top-0 z-30 w-28 border-b border-r border-slate-800 bg-slate-950 px-2 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider"
+              class="sticky left-24 top-0 z-30 w-28 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-2 py-3 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider"
             >
               Waktu KBM
             </th>
             <th
               v-for="kelas in kelasList"
               :key="kelas.id"
-              class="min-w-[90px] border-b border-r border-slate-800 bg-slate-950/95 px-3 py-3 text-xs font-bold text-emerald-400"
+              class="min-w-[90px] border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/95 px-3 py-3 text-xs font-bold text-emerald-600 dark:text-emerald-400"
             >
               {{ kelas.nama }}
             </th>
@@ -360,48 +360,48 @@ onUnmounted(() => {
               <!-- Baris Slot Khusus: Upacara / Istirahat (Colspan penuh) -->
               <tr
                 v-if="slot.tipe !== 'kbm'"
-                class="bg-slate-950/40 text-slate-400"
+                class="bg-amber-500/10 text-amber-800 dark:bg-slate-950/40 dark:text-slate-400"
               >
                 <!-- Label Hari (Sticky Left, hanya di slot pertama hari itu) -->
                 <td
                   v-if="slotIdx === 0"
                   :rowspan="hari.slots.length"
-                  class="sticky left-0 z-10 border-b border-r border-slate-800 bg-slate-950 px-3 py-2 font-bold text-slate-200 uppercase tracking-wider text-center align-middle"
+                  class="sticky left-0 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-3 py-2 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center align-middle"
                 >
                   {{ hari.nama }}
                 </td>
 
                 <td
-                  class="sticky left-24 z-10 border-b border-r border-slate-800 bg-slate-950/90 px-2 py-1.5 font-mono text-[10px] text-slate-400"
+                  class="sticky left-24 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/90 px-2 py-1.5 font-mono text-[10px] text-slate-600 dark:text-slate-400"
                 >
                   {{ slot.waktu[0] || '-' }}
                 </td>
 
                 <td
                   :colspan="kelasList.length"
-                  class="border-b border-r border-slate-800/80 bg-amber-500/5 px-3 py-1.5 text-center text-[11px] font-medium text-amber-300/80 tracking-wide"
+                  class="border-b border-r border-slate-200 dark:border-slate-800/80 bg-amber-50 dark:bg-amber-500/5 px-3 py-1.5 text-center text-[11px] font-medium text-amber-700 dark:text-amber-300/80 tracking-wide"
                 >
                   — {{ slot.label || (slot.tipe === 'istirahat' ? 'Istirahat' : 'Upacara') }} —
                 </td>
               </tr>
 
               <!-- Baris Slot KBM Reguler -->
-              <tr v-else class="hover:bg-slate-900/40">
+              <tr v-else class="hover:bg-slate-100/60 dark:hover:bg-slate-900/40">
                 <!-- Label Hari (Sticky Left, jika slotIdx === 0) -->
                 <td
                   v-if="slotIdx === 0"
                   :rowspan="hari.slots.length"
-                  class="sticky left-0 z-10 border-b border-r border-slate-800 bg-slate-950 px-3 py-2 font-bold text-slate-200 uppercase tracking-wider text-center align-middle"
+                  class="sticky left-0 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 px-3 py-2 font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center align-middle"
                 >
                   {{ hari.nama }}
                 </td>
 
                 <!-- Label Jam & Waktu KBM -->
                 <td
-                  class="sticky left-24 z-10 border-b border-r border-slate-800 bg-slate-950/90 px-2 py-2 text-center"
+                  class="sticky left-24 z-10 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/90 px-2 py-2 text-center"
                 >
-                  <div class="font-bold text-slate-300 text-xs">{{ slot.id }}</div>
-                  <div class="font-mono text-[10px] text-slate-400 leading-tight mt-0.5">
+                  <div class="font-bold text-slate-800 dark:text-slate-300 text-xs">{{ slot.id }}</div>
+                  <div class="font-mono text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
                     {{ slot.waktu[0] ? slot.waktu[0].split('-')[0] : '' }}
                   </div>
                 </td>
@@ -414,20 +414,20 @@ onUnmounted(() => {
                   @click="selectCell(hari.nama, slot.id, kelas.id)"
                   @dblclick="startEditing(hari.nama, slot.id, kelas.id)"
                   :class="[
-                    'relative h-10 border-b border-r border-slate-800/70 p-0 text-center font-mono text-xs font-semibold cursor-pointer transition-all',
+                    'relative h-10 border-b border-r border-slate-200 dark:border-slate-800/70 p-0 text-center font-mono text-xs font-semibold cursor-pointer transition-all bg-white dark:bg-slate-900/60',
                     // Sel Aktif Terpilih
                     uiStore.selectedCell?.hari === hari.nama &&
                     uiStore.selectedCell?.slotId === slot.id &&
                     uiStore.selectedCell?.kelasId === kelas.id
-                      ? 'ring-2 ring-emerald-400 ring-inset bg-emerald-500/20 z-10'
+                      ? 'ring-2 ring-emerald-500 ring-inset bg-emerald-50 dark:bg-emerald-500/20 text-emerald-900 dark:text-white z-10'
                       : '',
                     // Sel Bentrok (Clash)
                     hasClash(hari.nama, slot.id, kelas.id)
-                      ? 'bg-rose-500/20 text-rose-300 ring-2 ring-rose-500 ring-inset font-bold'
+                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300 ring-2 ring-rose-500 ring-inset font-bold'
                       : '',
                     // Sorot Guru Aktif
                     isHighlighted(hari.nama, slot.id, kelas.id)
-                      ? 'bg-amber-400/25 text-amber-200 ring-2 ring-amber-400 ring-inset'
+                      ? 'bg-amber-100 text-amber-900 dark:bg-amber-400/25 dark:text-amber-200 ring-2 ring-amber-500 dark:ring-amber-400 ring-inset'
                       : ''
                   ]"
                   :title="getClashTooltip(hari.nama, slot.id, kelas.id)"
@@ -447,7 +447,7 @@ onUnmounted(() => {
                       @keydown="onInputKeyDown"
                       @blur="commitEdit"
                       type="text"
-                      class="h-full w-full rounded border border-emerald-400 bg-slate-950 px-1 text-center font-mono text-xs font-bold text-white focus:outline-none"
+                      class="h-full w-full rounded border border-emerald-500 dark:border-emerald-400 bg-white dark:bg-slate-950 px-1 text-center font-mono text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
                   </div>
 
@@ -461,8 +461,8 @@ onUnmounted(() => {
                       :class="[
                         'rounded px-1.5 py-0.5',
                         hasClash(hari.nama, slot.id, kelas.id)
-                          ? 'text-rose-300 font-bold'
-                          : 'text-slate-100'
+                          ? 'text-rose-800 dark:text-rose-300 font-bold'
+                          : 'text-slate-800 dark:text-slate-100'
                       ]"
                     >
                       {{ getCellRaw(hari.nama, slot.id, kelas.id) }}

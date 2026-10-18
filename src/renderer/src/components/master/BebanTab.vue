@@ -170,17 +170,17 @@ function getGuruDisplay(a: Penugasan): string {
 <template>
   <div class="flex h-full w-full flex-col p-4 overflow-hidden">
     <!-- Header -->
-    <div class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-6 py-4 shadow-lg mb-4">
+    <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg mb-4">
       <div>
-        <h2 class="text-base font-semibold text-slate-100">Beban Mengajar & Penugasan Guru</h2>
-        <p class="text-xs text-slate-400">
+        <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">Beban Mengajar & Penugasan Guru</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
           Kelola kode mata pelajaran, guru pengampu (termasuk team teaching), dan alokasi JP per kelas.
         </p>
       </div>
 
       <button
         @click="openAddModal"
-        class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/30"
+        class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
       >
         <Plus class="h-4 w-4" />
         <span>Tambah Penugasan</span>
@@ -192,43 +192,43 @@ function getGuruDisplay(a: Penugasan): string {
       v-if="isEditing"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
     >
-      <div class="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden">
-        <div class="border-b border-slate-800 bg-slate-950 px-6 py-4">
-          <h3 class="text-sm font-semibold text-slate-100">
+      <div class="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div class="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
             {{ formPenugasan.id.startsWith('penugasan:') ? 'Tambah Penugasan Guru' : 'Edit Penugasan Guru' }}
           </h3>
-          <p class="text-xs text-slate-400">Tentukan kode, mata pelajaran, dan distribusi JP per kelas</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Tentukan kode, mata pelajaran, dan distribusi JP per kelas</p>
         </div>
 
         <div class="flex-1 overflow-y-auto p-6 space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Kode Unik Penugasan *</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Unik Penugasan *</label>
               <input
                 v-model="formPenugasan.kode"
                 type="text"
                 placeholder="Contoh: 1, 2A, MAT-1, PJOK"
-                class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Mata Pelajaran *</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Mata Pelajaran *</label>
               <input
                 v-model="formPenugasan.mapel"
                 type="text"
                 placeholder="Contoh: Matematika, Bahasa Inggris"
-                class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
           <!-- Opsi Team Teaching -->
-          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center space-x-2">
-                <Users class="h-4 w-4 text-emerald-400" />
-                <span class="text-xs font-semibold text-slate-200">Mode Team Teaching</span>
+                <Users class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span class="text-xs font-semibold text-slate-800 dark:text-slate-200">Mode Team Teaching</span>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input
@@ -236,16 +236,16 @@ function getGuruDisplay(a: Penugasan): string {
                   v-model="formPenugasan.is_team_teaching"
                   class="sr-only peer"
                 />
-                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                <div class="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
 
             <!-- Single Guru -->
             <div v-if="!formPenugasan.is_team_teaching">
-              <label class="block text-xs font-medium text-slate-400 mb-1">Guru Pengampu</label>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Guru Pengampu</label>
               <select
                 v-model="formPenugasan.guru_id"
-                class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option v-for="g in guruList" :key="g.id" :value="g.id">
                   {{ g.nama }} {{ g.nip ? `(${g.nip})` : '' }}
@@ -255,20 +255,20 @@ function getGuruDisplay(a: Penugasan): string {
 
             <!-- Multi Guru (Team Teaching) -->
             <div v-else class="space-y-2">
-              <label class="block text-xs font-medium text-slate-400">Pilih Guru Tim (Minimal 2)</label>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400">Pilih Guru Tim (Minimal 2)</label>
               <div class="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1">
                 <label
                   v-for="g in guruList"
                   :key="g.id"
-                  class="flex items-center space-x-2 rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-xs cursor-pointer hover:bg-slate-800"
+                  class="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white p-2 text-xs cursor-pointer hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:bg-slate-800"
                 >
                   <input
                     type="checkbox"
                     :value="g.id"
                     v-model="formPenugasan.guru_ids"
-                    class="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500"
+                    class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700 dark:text-emerald-500"
                   />
-                  <span class="truncate text-slate-200">{{ g.nama }}</span>
+                  <span class="truncate text-slate-800 dark:text-slate-200">{{ g.nama }}</span>
                 </label>
               </div>
             </div>
@@ -276,23 +276,23 @@ function getGuruDisplay(a: Penugasan): string {
 
           <!-- Matriks Distribusi JP Per Kelas -->
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-2">
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
               Alokasi JP per Kelas (Isi jam pelajaran per minggu)
             </label>
-            <div class="grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <div class="grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/60">
               <div
                 v-for="k in kelasList"
                 :key="k.id"
-                class="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900 p-2 text-xs"
+                class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 text-xs dark:border-slate-800/80 dark:bg-slate-900"
               >
-                <span class="font-medium text-slate-300">{{ k.nama }}</span>
+                <span class="font-medium text-slate-800 dark:text-slate-300">{{ k.nama }}</span>
                 <div class="flex items-center space-x-1">
                   <input
                     type="number"
                     min="0"
                     max="10"
                     v-model.number="formPenugasan.beban[k.id]"
-                    class="h-7 w-12 rounded border border-slate-700 bg-slate-950 text-center text-xs text-slate-100 focus:border-emerald-500 focus:outline-none"
+                    class="h-7 w-12 rounded border border-slate-300 bg-white text-center text-xs text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                   <span class="text-[10px] text-slate-500">JP</span>
                 </div>
@@ -301,10 +301,10 @@ function getGuruDisplay(a: Penugasan): string {
           </div>
         </div>
 
-        <div class="flex items-center justify-end space-x-2 border-t border-slate-800 bg-slate-950 px-6 py-4">
+        <div class="flex items-center justify-end space-x-2 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
           <button
             @click="isEditing = false"
-            class="rounded-lg px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200"
+            class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
             Batal
           </button>
@@ -320,9 +320,9 @@ function getGuruDisplay(a: Penugasan): string {
     </div>
 
     <!-- Table Penugasan -->
-    <div class="flex-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-lg">
-      <table class="w-full text-left text-xs text-slate-200">
-        <thead class="border-b border-slate-800 bg-slate-950/90 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+    <div class="flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg">
+      <table class="w-full text-left text-xs text-slate-800 dark:text-slate-200">
+        <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 uppercase tracking-wider dark:border-slate-800 dark:bg-slate-950/90 dark:text-slate-400">
           <tr>
             <th class="w-16 px-4 py-3.5 text-center">Kode</th>
             <th class="px-4 py-3.5">Mata Pelajaran</th>
@@ -333,12 +333,12 @@ function getGuruDisplay(a: Penugasan): string {
             <th class="w-24 px-4 py-3.5 text-right">Aksi</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-800/60">
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
           <tr
             v-if="store.proyek.master.penugasan.length === 0"
             class="text-center"
           >
-            <td colspan="7" class="p-8 text-xs text-slate-500">
+            <td colspan="7" class="p-8 text-xs text-slate-400 dark:text-slate-500">
               Belum ada penugasan beban mengajar. Klik tombol Tambah Penugasan di atas.
             </td>
           </tr>
@@ -346,7 +346,7 @@ function getGuruDisplay(a: Penugasan): string {
           <tr
             v-for="a in store.proyek.master.penugasan"
             :key="a.id"
-            class="hover:bg-slate-900/40 transition-colors"
+            class="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors"
           >
             <!-- Kode & Indikator Bentrok Kode -->
             <td class="px-4 py-3 text-center">
@@ -354,8 +354,8 @@ function getGuruDisplay(a: Penugasan): string {
                 :class="[
                   'inline-flex items-center rounded px-2 py-0.5 font-mono text-xs font-bold',
                   kodeClashes[a.kode]
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
                 ]"
                 :title="kodeClashes[a.kode] ? 'Peringatan: Kode ini dipakai oleh beberapa guru berbeda!' : 'Kode valid'"
               >
@@ -363,18 +363,18 @@ function getGuruDisplay(a: Penugasan): string {
               </span>
             </td>
 
-            <td class="px-4 py-3 font-semibold text-slate-100">
+            <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100">
               <div class="flex items-center space-x-1.5">
-                <BookOpen class="h-3.5 w-3.5 text-slate-500" />
+                <BookOpen class="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                 <span>{{ a.mapel }}</span>
               </div>
             </td>
 
-            <td class="px-4 py-3 text-slate-300">
+            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
               {{ getGuruDisplay(a) }}
             </td>
 
-            <td class="px-4 py-3 text-center font-mono font-medium text-slate-300">
+            <td class="px-4 py-3 text-center font-mono font-medium text-slate-600 dark:text-slate-300">
               {{ getTotalBeban(a) }} JP
             </td>
 
@@ -382,10 +382,10 @@ function getGuruDisplay(a: Penugasan): string {
               <span
                 :class="[
                   getTerpasangTotal(a) === getTotalBeban(a)
-                    ? 'text-emerald-400'
+                    ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                     : getTerpasangTotal(a) > getTotalBeban(a)
-                    ? 'text-rose-400'
-                    : 'text-amber-400'
+                    ? 'text-rose-600 dark:text-rose-400 font-bold'
+                    : 'text-amber-600 dark:text-amber-400 font-bold'
                 ]"
               >
                 {{ getTerpasangTotal(a) }} JP
@@ -395,19 +395,19 @@ function getGuruDisplay(a: Penugasan): string {
             <td class="px-4 py-3">
               <span
                 v-if="getTerpasangTotal(a) === getTotalBeban(a)"
-                class="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/20"
+                class="rounded bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium"
               >
                 Lengkap (Tuntas)
               </span>
               <span
                 v-else-if="getTerpasangTotal(a) < getTotalBeban(a)"
-                class="rounded bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-400 border border-indigo-500/20"
+                class="rounded bg-indigo-100 text-indigo-700 border border-indigo-300 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20 px-2 py-0.5 text-[10px] font-medium"
               >
                 Sisa {{ getTotalBeban(a) - getTerpasangTotal(a) }} JP
               </span>
               <span
                 v-else
-                class="rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-400 border border-rose-500/20"
+                class="rounded bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 px-2 py-0.5 text-[10px] font-medium"
               >
                 Kelebihan {{ getTerpasangTotal(a) - getTotalBeban(a) }} JP
               </span>
@@ -417,13 +417,13 @@ function getGuruDisplay(a: Penugasan): string {
               <div class="flex items-center justify-end space-x-1">
                 <button
                   @click="editPenugasan(a)"
-                  class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+                  class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
                 >
                   <Edit2 class="h-3.5 w-3.5" />
                 </button>
                 <button
                   @click="removePenugasan(a.id)"
-                  class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition-colors"
+                  class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition-colors"
                 >
                   <Trash2 class="h-3.5 w-3.5" />
                 </button>

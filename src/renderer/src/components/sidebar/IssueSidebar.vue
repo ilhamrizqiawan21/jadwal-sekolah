@@ -113,28 +113,28 @@ function applyCodeToSelectedCell(kode: string): void {
 </script>
 
 <template>
-  <div class="flex h-full w-80 flex-col border-l border-slate-800 bg-slate-950 text-slate-200">
+  <div class="flex h-full w-80 flex-col border-l border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
     <!-- Tab Navigasi Sidebar -->
-    <div class="flex border-b border-slate-800 bg-slate-950 px-2 pt-2">
+    <div class="flex border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950 px-2 pt-2">
       <button
         @click="uiStore.setSidebarTab('issues')"
         :class="[
           'relative flex flex-1 items-center justify-center space-x-1.5 py-2.5 text-xs font-semibold transition-colors',
           uiStore.sidebarTab === 'issues'
-            ? 'text-emerald-400 border-b-2 border-emerald-500'
-            : 'text-slate-400 hover:text-slate-200'
+            ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500'
+            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
         ]"
       >
         <span>Pemeriksaan</span>
         <span
           v-if="errorIssues.length > 0"
-          class="rounded-full bg-rose-500/20 px-1.5 py-0.2 text-[10px] font-bold text-rose-400 border border-rose-500/40"
+          class="rounded-full bg-rose-100 dark:bg-rose-500/20 px-1.5 py-0.2 text-[10px] font-bold text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-500/40"
         >
           {{ errorIssues.length }}
         </span>
         <span
           v-else
-          class="rounded-full bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-bold text-emerald-400 border border-emerald-500/20"
+          class="rounded-full bg-emerald-100 dark:bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/20"
         >
           ✓
         </span>
@@ -145,12 +145,12 @@ function applyCodeToSelectedCell(kode: string): void {
         :class="[
           'flex flex-1 items-center justify-center space-x-1.5 py-2.5 text-xs font-semibold transition-colors',
           uiStore.sidebarTab === 'codes'
-            ? 'text-emerald-400 border-b-2 border-emerald-500'
-            : 'text-slate-400 hover:text-slate-200'
+            ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500'
+            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
         ]"
       >
         <span>Daftar Kode</span>
-        <span class="rounded bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono text-slate-400">
+        <span class="rounded bg-slate-200 dark:bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono text-slate-700 dark:text-slate-400">
           {{ store.proyek.master.penugasan.length }}
         </span>
       </button>
@@ -166,12 +166,12 @@ function applyCodeToSelectedCell(kode: string): void {
         :class="[
           'flex items-center space-x-3 rounded-xl border p-3.5',
           errorIssues.length === 0
-            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-            : 'border-rose-500/40 bg-rose-500/10 text-rose-300'
+            ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+            : 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300'
         ]"
       >
-        <CheckCircle2 v-if="errorIssues.length === 0" class="h-6 w-6 text-emerald-400 shrink-0" />
-        <AlertCircle v-else class="h-6 w-6 text-rose-400 shrink-0" />
+        <CheckCircle2 v-if="errorIssues.length === 0" class="h-6 w-6 text-emerald-500 dark:text-emerald-400 shrink-0" />
+        <AlertCircle v-else class="h-6 w-6 text-rose-500 dark:text-rose-400 shrink-0" />
         <div>
           <div class="text-xs font-bold uppercase tracking-wider">
             {{ errorIssues.length === 0 ? 'Jadwal Bebas Bentrok' : 'Terdapat Masalah' }}
@@ -184,7 +184,7 @@ function applyCodeToSelectedCell(kode: string): void {
 
       <!-- Kategori: Harus Diperbaiki (Errors) -->
       <div v-if="errorIssues.length > 0" class="space-y-2">
-        <div class="flex items-center space-x-1.5 text-xs font-semibold text-rose-400">
+        <div class="flex items-center space-x-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
           <AlertCircle class="h-3.5 w-3.5" />
           <span>Harus Diperbaiki ({{ errorIssues.length }})</span>
         </div>
@@ -193,14 +193,14 @@ function applyCodeToSelectedCell(kode: string): void {
           <div
             v-for="(issue, idx) in errorIssues"
             :key="idx"
-            class="group rounded-lg border border-rose-500/30 bg-slate-900/90 p-2.5 text-xs text-rose-200 transition-all hover:border-rose-500/60"
+            class="group rounded-lg border border-rose-200 bg-rose-50/60 p-2.5 text-xs text-rose-900 transition-all hover:border-rose-400 dark:border-rose-500/30 dark:bg-slate-900/90 dark:text-rose-200 dark:hover:border-rose-500/60"
           >
             <div class="flex items-start justify-between gap-1">
               <span class="text-[11px] leading-relaxed">{{ issue.pesan }}</span>
               <button
                 v-if="issue.sel && issue.sel.length > 0"
                 @click="jumpToIssue(issue)"
-                class="shrink-0 rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/30 transition-colors"
+                class="shrink-0 rounded bg-rose-200 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800 hover:bg-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:hover:bg-rose-500/30 transition-colors"
                 title="Lompat ke posisi sel di kisi jadwal"
               >
                 Lompat
@@ -208,12 +208,12 @@ function applyCodeToSelectedCell(kode: string): void {
             </div>
             <div
               v-if="issue.sel && issue.sel.length > 0"
-              class="mt-1 flex flex-wrap gap-1 text-[10px] text-slate-400 font-mono"
+              class="mt-1 flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono"
             >
               <span
                 v-for="(s, sIdx) in issue.sel"
                 :key="sIdx"
-                class="rounded bg-slate-950 px-1 py-0.2"
+                class="rounded bg-white dark:bg-slate-950 px-1 py-0.2 border border-slate-200 dark:border-transparent"
               >
                 {{ s.hari }} {{ s.slot_id }} ({{ s.kelas_id.replace('kelas:', '') }})
               </span>
@@ -224,7 +224,7 @@ function applyCodeToSelectedCell(kode: string): void {
 
       <!-- Kategori: Peringatan & Sisa Beban Belum Diplot -->
       <div v-if="warningIssues.length > 0" class="space-y-2">
-        <div class="flex items-center space-x-1.5 text-xs font-semibold text-amber-400">
+        <div class="flex items-center space-x-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
           <AlertTriangle class="h-3.5 w-3.5" />
           <span>Belum Tuntas Diplot ({{ warningIssues.length }})</span>
         </div>
@@ -233,7 +233,7 @@ function applyCodeToSelectedCell(kode: string): void {
           <div
             v-for="(issue, idx) in warningIssues"
             :key="idx"
-            class="rounded-lg border border-amber-500/30 bg-slate-900/80 p-2.5 text-[11px] text-amber-200"
+            class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:border-amber-500/30 dark:bg-slate-900/80 dark:text-amber-200"
           >
             <div>{{ issue.pesan }}</div>
           </div>
@@ -245,12 +245,12 @@ function applyCodeToSelectedCell(kode: string): void {
     <div v-else class="flex flex-1 flex-col overflow-hidden p-3">
       <!-- Search Input -->
       <div class="relative mb-3">
-        <Search class="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+        <Search class="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
         <input
           v-model="searchQuery"
           type="text"
           placeholder="Cari mapel, kode, guru..."
-          class="w-full rounded-lg border border-slate-800 bg-slate-900 py-1.5 pl-8 pr-3 text-xs text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+          class="w-full rounded-lg border border-slate-300 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
         />
       </div>
 
@@ -258,7 +258,7 @@ function applyCodeToSelectedCell(kode: string): void {
       <div class="flex-1 overflow-y-auto space-y-2 pr-1">
         <div
           v-if="filteredPenugasan.length === 0"
-          class="p-6 text-center text-xs text-slate-500"
+          class="p-6 text-center text-xs text-slate-400 dark:text-slate-500"
         >
           Tidak ada penugasan yang sesuai pencarian.
         </div>
@@ -269,35 +269,35 @@ function applyCodeToSelectedCell(kode: string): void {
           :class="[
             'group rounded-xl border p-3 transition-all',
             uiStore.highlightedGuruId === p.guru_id
-              ? 'border-amber-400/60 bg-amber-500/10'
-              : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+              ? 'border-amber-400 bg-amber-50 dark:border-amber-400/60 dark:bg-amber-500/10'
+              : 'border-slate-200 bg-slate-50 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700'
           ]"
         >
           <div class="flex items-center justify-between mb-1.5">
-            <span class="rounded bg-emerald-500/20 px-2 py-0.5 font-mono text-xs font-bold text-emerald-400 border border-emerald-500/30">
+            <span class="rounded bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30 px-2 py-0.5 font-mono text-xs font-bold">
               Kode: {{ p.kode }}
             </span>
-            <span class="text-[11px] font-mono text-slate-400">
+            <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">
               {{ getTerpasangCount(p) }} / {{ getTotalBeban(p) }} JP
             </span>
           </div>
 
-          <div class="text-xs font-semibold text-slate-100 truncate">
+          <div class="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
             {{ p.mapel }}
           </div>
-          <div class="text-[11px] text-slate-400 truncate mb-2">
+          <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
             {{ getGuruName(p.guru_id) }}
           </div>
 
           <!-- Aksi Cepat Kode -->
-          <div class="flex items-center justify-between border-t border-slate-800/80 pt-2 text-[10px]">
+          <div class="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/80 pt-2 text-[10px]">
             <button
               @click="toggleHighlightGuru(p.guru_id)"
               :class="[
                 'flex items-center space-x-1 rounded px-2 py-1 transition-colors',
                 uiStore.highlightedGuruId === p.guru_id
-                  ? 'bg-amber-500/20 text-amber-300 font-semibold'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300 font-semibold'
+                  : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
               ]"
             >
               <Eye class="h-3 w-3" />
@@ -306,7 +306,7 @@ function applyCodeToSelectedCell(kode: string): void {
 
             <button
               @click="applyCodeToSelectedCell(p.kode)"
-              class="flex items-center space-x-1 rounded bg-emerald-600/80 px-2 py-1 text-white hover:bg-emerald-500 transition-colors"
+              class="flex items-center space-x-1 rounded bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-500 transition-colors shadow-sm"
               title="Isi kode ini ke sel yang sedang aktif di kisi jadwal"
             >
               <PlusCircle class="h-3 w-3" />

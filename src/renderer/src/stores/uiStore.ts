@@ -12,8 +12,16 @@ export interface SelectedCell {
   kelasId: string
 }
 
+function getInitialTheme(): ThemeMode {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('js_theme')
+    if (saved === 'dark' || saved === 'light') return saved
+  }
+  return 'dark'
+}
+
 export const useUiStore = defineStore('ui', () => {
-  const theme = ref<ThemeMode>('dark')
+  const theme = ref<ThemeMode>(getInitialTheme())
   const activeTab = ref<ActiveTab>('jadwal')
   const selectedCell = ref<SelectedCell | null>(null)
   const highlightedGuruId = ref<string | null>(null)
@@ -24,6 +32,9 @@ export const useUiStore = defineStore('ui', () => {
 
   function setTheme(mode: ThemeMode): void {
     theme.value = mode
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('js_theme', mode)
+    }
     if (typeof document !== 'undefined') {
       if (mode === 'dark') {
         document.documentElement.classList.add('dark')
@@ -31,6 +42,10 @@ export const useUiStore = defineStore('ui', () => {
         document.documentElement.classList.remove('dark')
       }
     }
+  }
+
+  function initTheme(): void {
+    setTheme(theme.value)
   }
 
   function toggleTheme(): void {
@@ -75,6 +90,7 @@ export const useUiStore = defineStore('ui', () => {
     isWizardOpen,
     autoSaveStatus,
     setTheme,
+    initTheme,
     toggleTheme,
     setActiveTab,
     setSelectedCell,

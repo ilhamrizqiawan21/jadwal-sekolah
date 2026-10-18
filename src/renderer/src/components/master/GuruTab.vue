@@ -183,11 +183,11 @@ function clearDayUnavailable(hari: string): void {
 <template>
   <div class="flex h-full w-full gap-4 overflow-hidden p-4">
     <!-- Kolom Kiri: Daftar Guru -->
-    <div class="flex w-80 flex-col rounded-xl border border-slate-800 bg-slate-950/60 shadow-lg">
-      <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+    <div class="flex w-80 flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3">
         <div>
-          <h2 class="text-sm font-semibold text-slate-100">Daftar Guru</h2>
-          <p class="text-[11px] text-slate-400">Total {{ store.proyek.master.guru.length }} guru terdaftar</p>
+          <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Daftar Guru</h2>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">Total {{ store.proyek.master.guru.length }} guru terdaftar</p>
         </div>
         <button
           @click="openAddGuruModal"
@@ -202,7 +202,7 @@ function clearDayUnavailable(hari: string): void {
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
         <div
           v-if="store.proyek.master.guru.length === 0"
-          class="p-6 text-center text-xs text-slate-500"
+          class="p-6 text-center text-xs text-slate-400 dark:text-slate-500"
         >
           Belum ada guru. Klik tombol Tambah di atas.
         </div>
@@ -214,8 +214,8 @@ function clearDayUnavailable(hari: string): void {
           :class="[
             'group flex cursor-pointer items-center justify-between rounded-lg p-2.5 text-xs transition-all',
             selectedGuruId === guru.id
-              ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-medium'
-              : 'text-slate-300 hover:bg-slate-900 border border-transparent'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-medium dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30'
+              : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900 border border-transparent'
           ]"
         >
           <div class="flex items-center space-x-2.5 overflow-hidden">
@@ -226,8 +226,8 @@ function clearDayUnavailable(hari: string): void {
               {{ guru.kode_prefiks || guru.nama.charAt(0) }}
             </span>
             <div class="truncate">
-              <div class="truncate text-slate-100 font-medium">{{ guru.nama }}</div>
-              <div class="text-[10px] text-slate-400">
+              <div class="truncate text-slate-800 dark:text-slate-100 font-medium">{{ guru.nama }}</div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400">
                 {{ guru.nip ? `NIP: ${guru.nip}` : 'Non-NIP' }}
               </div>
             </div>
@@ -236,13 +236,13 @@ function clearDayUnavailable(hari: string): void {
           <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               @click.stop="editGuru(guru)"
-              class="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200"
             >
               <Edit2 class="h-3 w-3" />
             </button>
             <button
               @click.stop="removeGuru(guru.id)"
-              class="rounded p-1 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400"
+              class="rounded p-1 text-slate-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400"
             >
               <Trash2 class="h-3 w-3" />
             </button>
@@ -252,38 +252,38 @@ function clearDayUnavailable(hari: string): void {
     </div>
 
     <!-- Kolom Kanan: Form Edit / Matriks Ketersediaan Guru -->
-    <div class="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-950/60 shadow-lg overflow-hidden">
+    <div class="flex flex-1 flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg overflow-hidden">
       <!-- Header Matriks / Form -->
-      <div class="flex items-center justify-between border-b border-slate-800 px-6 py-3.5">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-3.5">
         <div v-if="activeGuru">
           <div class="flex items-center space-x-2">
-            <h3 class="text-sm font-semibold text-slate-100">{{ activeGuru.nama }}</h3>
+            <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ activeGuru.nama }}</h3>
             <span
               v-if="activeGuru.kode_prefiks"
-              class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-emerald-400"
+              class="rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-mono border border-slate-200 dark:border-transparent"
             >
               Kode: {{ activeGuru.kode_prefiks }}
             </span>
           </div>
-          <p class="text-xs text-slate-400">
+          <p class="text-xs text-slate-500 dark:text-slate-400">
             Matriks ketersediaan jam mengajar (klik sel untuk menandai jam berhalangan / izin)
           </p>
         </div>
         <div v-else-if="isEditing">
-          <h3 class="text-sm font-semibold text-slate-100">
+          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
             {{ formGuru.id.startsWith('guru:') ? 'Tambah Guru Baru' : 'Edit Data Guru' }}
           </h3>
-          <p class="text-xs text-slate-400">Masukkan identitas lengkap guru</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Masukkan identitas lengkap guru</p>
         </div>
         <div v-else>
-          <h3 class="text-sm font-semibold text-slate-100">Pilih Guru</h3>
-          <p class="text-xs text-slate-400">Pilih salah satu guru di kolom kiri untuk mengatur jadwal izinnya</p>
+          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Pilih Guru</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Pilih salah satu guru di kolom kiri untuk mengatur jadwal izinnya</p>
         </div>
 
         <div v-if="activeGuru && !isEditing" class="flex items-center space-x-2">
           <button
             @click="editGuru(activeGuru)"
-            class="flex items-center space-x-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700 transition-colors"
+            class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
             <Edit2 class="h-3.5 w-3.5" />
             <span>Edit Profil</span>
@@ -295,45 +295,45 @@ function clearDayUnavailable(hari: string): void {
       <div v-if="isEditing" class="p-6">
         <div class="max-w-md space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Nama Lengkap & Gelar *</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Lengkap & Gelar *</label>
             <input
               v-model="formGuru.nama"
               type="text"
               placeholder="Contoh: Drs. H. Ahmad Dahlan, M.Pd."
-              class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">NIP / NUPTK</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">NIP / NUPTK</label>
             <input
               v-model="formGuru.nip"
               type="text"
               placeholder="19xxxxxxxxxxxxxx (opsional)"
-              class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Kode Singkat</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Singkat</label>
               <input
                 v-model="formGuru.kode_prefiks"
                 type="text"
                 placeholder="Contoh: 1, 2, BIO"
-                class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Warna Penanda</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Warna Penanda</label>
               <div class="flex items-center space-x-2">
                 <input
                   v-model="formGuru.warna"
                   type="color"
-                  class="h-9 w-12 rounded cursor-pointer border border-slate-700 bg-slate-900 p-0.5"
+                  class="h-9 w-12 rounded cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5"
                 />
-                <span class="text-xs font-mono text-slate-400">{{ formGuru.warna }}</span>
+                <span class="text-xs font-mono text-slate-500 dark:text-slate-400">{{ formGuru.warna }}</span>
               </div>
             </div>
           </div>
@@ -348,7 +348,7 @@ function clearDayUnavailable(hari: string): void {
             </button>
             <button
               @click="isEditing = false"
-              class="rounded-lg px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200"
+              class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             >
               Batal
             </button>
@@ -358,23 +358,23 @@ function clearDayUnavailable(hari: string): void {
 
       <!-- Body: Tampilan Matriks Ketersediaan Guru (Availability Matrix) -->
       <div v-else-if="activeGuru" class="flex-1 overflow-y-auto p-6">
-        <div class="mb-4 flex items-center justify-between text-xs text-slate-400">
+        <div class="mb-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div class="flex items-center space-x-4">
             <div class="flex items-center space-x-1.5">
-              <span class="h-3 w-3 rounded bg-emerald-500/20 border border-emerald-500/40"></span>
-              <span>Bisa Mengajar</span>
+              <span class="h-3 w-3 rounded bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/20 dark:border-emerald-500/40"></span>
+              <span class="text-slate-700 dark:text-slate-300">Bisa Mengajar</span>
             </div>
             <div class="flex items-center space-x-1.5">
-              <span class="h-3 w-3 rounded bg-rose-500/20 border border-rose-500/40"></span>
-              <span class="text-rose-400 font-medium">Berhalangan (Tidak Bisa)</span>
+              <span class="h-3 w-3 rounded bg-rose-100 border border-rose-300 dark:bg-rose-500/20 dark:border-rose-500/40"></span>
+              <span class="text-rose-600 dark:text-rose-400 font-medium">Berhalangan (Tidak Bisa)</span>
             </div>
           </div>
         </div>
 
         <!-- Tabel Matriks Hari x Slot Jam -->
-        <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-          <table class="w-full text-left text-xs text-slate-200">
-            <thead class="border-b border-slate-800 bg-slate-950/80 text-[11px] font-semibold text-slate-400 uppercase">
+        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40">
+          <table class="w-full text-left text-xs text-slate-800 dark:text-slate-200">
+            <thead class="border-b border-slate-200 bg-slate-100 text-[11px] font-semibold text-slate-600 uppercase dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-400">
               <tr>
                 <th class="px-4 py-3">Hari</th>
                 <th
@@ -387,13 +387,13 @@ function clearDayUnavailable(hari: string): void {
                 <th class="px-3 py-3 text-right">Aksi Cepat</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60">
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
               <tr
                 v-for="day in activeDays"
                 :key="day.hari"
-                class="hover:bg-slate-900/30 transition-colors"
+                class="hover:bg-slate-100/60 dark:hover:bg-slate-900/30 transition-colors"
               >
-                <td class="px-4 py-3 font-semibold text-slate-300">
+                <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-300">
                   {{ day.hari }}
                 </td>
 
@@ -409,28 +409,28 @@ function clearDayUnavailable(hari: string): void {
                     :class="[
                       'h-8 w-full min-w-[40px] rounded-lg border text-xs font-semibold transition-all flex items-center justify-center',
                       isSlotUnavailable(day.hari, slot.id)
-                        ? 'border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-sm shadow-rose-900/20'
-                        : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:border-emerald-500/40'
+                        ? 'border-rose-300 bg-rose-100 text-rose-700 shadow-sm dark:border-rose-500/50 dark:bg-rose-500/20 dark:text-rose-400'
+                        : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-400'
                     ]"
                     :title="isSlotUnavailable(day.hari, slot.id) ? 'Status: Berhalangan' : 'Status: Tersedia'"
                   >
                     <span v-if="isSlotUnavailable(day.hari, slot.id)">✕</span>
                     <span v-else>✓</span>
                   </button>
-                  <span v-else class="text-slate-600 text-[10px]">—</span>
+                  <span v-else class="text-slate-400 dark:text-slate-600 text-[10px]">—</span>
                 </td>
 
                 <td class="px-3 py-2 text-right">
                   <div class="flex items-center justify-end space-x-1 text-[10px]">
                     <button
                       @click="setAllDayUnavailable(day.hari)"
-                      class="rounded bg-rose-500/10 px-2 py-1 text-rose-400 hover:bg-rose-500/20 transition-colors"
+                      class="rounded bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 transition-colors px-2 py-1"
                     >
                       Izin Sehari
                     </button>
                     <button
                       @click="clearDayUnavailable(day.hari)"
-                      class="rounded bg-slate-800 px-2 py-1 text-slate-300 hover:bg-slate-700 transition-colors"
+                      class="rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors px-2 py-1"
                     >
                       Reset
                     </button>
@@ -443,9 +443,9 @@ function clearDayUnavailable(hari: string): void {
       </div>
 
       <!-- State Kosong: Belum Pilih Guru -->
-      <div v-else class="flex flex-1 items-center justify-center p-8 text-center text-xs text-slate-500">
+      <div v-else class="flex flex-1 items-center justify-center p-8 text-center text-xs text-slate-400 dark:text-slate-500">
         <div>
-          <Calendar class="mx-auto h-8 w-8 text-slate-600 mb-2" />
+          <Calendar class="mx-auto h-8 w-8 text-slate-400 dark:text-slate-600 mb-2" />
           <p>Pilih salah satu guru di sebelah kiri untuk melihat dan menyunting matriks ketersediaan jam mengajarnya.</p>
         </div>
       </div>

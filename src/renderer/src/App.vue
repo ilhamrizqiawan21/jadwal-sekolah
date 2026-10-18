@@ -12,7 +12,9 @@ import {
   Printer,
   Sparkles,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Sun,
+  Moon
 } from 'lucide-vue-next'
 import { useScheduleStore } from './stores/scheduleStore'
 import { useUiStore, ActiveTab } from './stores/uiStore'
@@ -118,6 +120,7 @@ async function handlePrintPdf(): Promise<void> {
 }
 
 onMounted(() => {
+  uiStore.initTheme()
   // Jika proyek baru pertama kali dan kelas masih kosong, tawarkan wizard
   if (store.proyek.master.kelas.length === 0 && store.proyek.meta.nama_sekolah === 'Sekolah Baru') {
     uiStore.setWizardOpen(true)
@@ -126,9 +129,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen w-screen flex-col bg-slate-900 text-slate-100 overflow-hidden select-none">
+  <div class="flex h-screen w-screen flex-col bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 overflow-hidden select-none">
     <!-- Header / Navbar Aplikasi Modern -->
-    <header class="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-4">
+    <header class="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 px-4 shadow-sm dark:shadow-none">
       <!-- Identitas & Menu Berkas -->
       <div class="flex items-center space-x-3">
         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 font-bold text-white shadow-lg shadow-emerald-900/40">
@@ -136,7 +139,7 @@ onMounted(() => {
         </div>
         <div>
           <div class="flex items-center space-x-2">
-            <h1 class="text-sm font-semibold tracking-wide text-slate-100">
+            <h1 class="text-sm font-semibold tracking-wide text-slate-800 dark:text-slate-100">
               {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
             </h1>
             <span
@@ -145,22 +148,22 @@ onMounted(() => {
               title="Ada perubahan belum disimpan"
             />
           </div>
-          <p class="text-[11px] text-slate-400">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
             Tahun Pelajaran {{ store.proyek.meta.tahun_pelajaran }} — Semester {{ store.proyek.meta.semester }}
-            <span v-if="store.filePath" class="text-slate-500">({{ store.filePath }})</span>
+            <span v-if="store.filePath" class="text-slate-400 dark:text-slate-500">({{ store.filePath }})</span>
           </p>
         </div>
       </div>
 
       <!-- Navigasi Tabs Utama -->
-      <nav class="flex space-x-1 rounded-xl bg-slate-900 p-1 border border-slate-800">
+      <nav class="flex space-x-1 rounded-xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-800">
         <button
           @click="uiStore.setActiveTab('jadwal')"
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
             uiStore.activeTab === 'jadwal'
-              ? 'bg-slate-800 text-emerald-400 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           ]"
         >
           <Calendar class="h-4 w-4" />
@@ -172,8 +175,8 @@ onMounted(() => {
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
             uiStore.activeTab === 'beban'
-              ? 'bg-slate-800 text-emerald-400 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           ]"
         >
           <Layers class="h-4 w-4" />
@@ -185,8 +188,8 @@ onMounted(() => {
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
             uiStore.activeTab === 'guru'
-              ? 'bg-slate-800 text-emerald-400 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           ]"
         >
           <Users class="h-4 w-4" />
@@ -198,8 +201,8 @@ onMounted(() => {
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
             uiStore.activeTab === 'kelas'
-              ? 'bg-slate-800 text-emerald-400 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           ]"
         >
           <GraduationCap class="h-4 w-4" />
@@ -211,8 +214,8 @@ onMounted(() => {
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
             uiStore.activeTab === 'pengaturan'
-              ? 'bg-slate-800 text-emerald-400 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-800 dark:text-emerald-400'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           ]"
         >
           <Settings class="h-4 w-4" />
@@ -224,16 +227,16 @@ onMounted(() => {
       <div class="flex items-center space-x-2">
         <button
           @click="uiStore.setWizardOpen(true)"
-          class="flex items-center space-x-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Setup Proyek Baru"
         >
-          <Sparkles class="h-3.5 w-3.5 text-emerald-400" />
+          <Sparkles class="h-3.5 w-3.5 text-emerald-500" />
           <span>Setup</span>
         </button>
 
         <button
           @click="handleOpenFile"
-          class="flex items-center space-x-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Buka Berkas Jadwal (.jadwal)"
         >
           <FolderOpen class="h-3.5 w-3.5" />
@@ -246,7 +249,7 @@ onMounted(() => {
             'flex items-center space-x-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all shadow-md',
             store.dirty
               ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-900/40'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
           ]"
           title="Simpan Jadwal (Ctrl+S)"
         >
@@ -254,24 +257,34 @@ onMounted(() => {
           <span>Simpan</span>
         </button>
 
-        <div class="h-4 w-px bg-slate-800 mx-1" />
+        <div class="h-4 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
 
         <button
           @click="handleExportExcel"
-          class="flex items-center space-x-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Ekspor format Microsoft Excel (.xlsx)"
         >
-          <FileSpreadsheet class="h-3.5 w-3.5 text-emerald-400" />
+          <FileSpreadsheet class="h-3.5 w-3.5 text-emerald-500" />
           <span>Excel</span>
         </button>
 
         <button
           @click="handlePrintPdf"
-          class="flex items-center space-x-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           title="Cetak Dokumen Resmi PDF"
         >
-          <Printer class="h-3.5 w-3.5 text-indigo-400" />
+          <Printer class="h-3.5 w-3.5 text-indigo-500" />
           <span>Cetak PDF</span>
+        </button>
+
+        <!-- Tombol Switch Tema Dark / Light -->
+        <button
+          @click="uiStore.toggleTheme"
+          class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 p-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          :title="uiStore.theme === 'dark' ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'"
+        >
+          <Sun v-if="uiStore.theme === 'dark'" class="h-4 w-4 text-amber-400" />
+          <Moon v-else class="h-4 w-4 text-indigo-500" />
         </button>
       </div>
     </header>

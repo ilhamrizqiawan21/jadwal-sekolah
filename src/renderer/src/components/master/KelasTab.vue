@@ -127,17 +127,17 @@ function getGuruName(guruId: string | null | undefined): string {
 <template>
   <div class="flex h-full w-full flex-col p-4 overflow-hidden">
     <!-- Header -->
-    <div class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-6 py-4 shadow-lg mb-4">
+    <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg mb-4">
       <div>
-        <h2 class="text-base font-semibold text-slate-100">Manajemen Rombongan Belajar (Kelas)</h2>
-        <p class="text-xs text-slate-400">
+        <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">Manajemen Rombongan Belajar (Kelas)</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
           Atur daftar rombel, tingkat kelas, wali kelas, dan urutan tampilan kolom pada kisi jadwal.
         </p>
       </div>
 
       <button
         @click="openAddModal"
-        class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/30"
+        class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
       >
         <Plus class="h-4 w-4" />
         <span>Tambah Kelas Baru</span>
@@ -149,39 +149,39 @@ function getGuruName(guruId: string | null | undefined): string {
       v-if="isEditing"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
     >
-      <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-        <h3 class="text-sm font-semibold text-slate-100 mb-1">
+      <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">
           {{ formKelas.id.startsWith('kelas:') ? 'Tambah Kelas Baru' : 'Edit Kelas' }}
         </h3>
-        <p class="text-xs text-slate-400 mb-4">Lengkapi informasi rombongan belajar</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Lengkapi informasi rombongan belajar</p>
 
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Nama Rombel / Kelas *</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Rombel / Kelas *</label>
             <input
               v-model="formKelas.nama"
               type="text"
               placeholder="Contoh: 7A, X-IPA 1, XII TKJ 2"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Tingkat / Grade *</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Tingkat / Grade *</label>
             <input
               v-model.number="formKelas.tingkat"
               type="number"
               min="1"
               max="13"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Wali Kelas</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Wali Kelas</label>
             <select
               v-model="formKelas.wali_guru_id"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option :value="null">-- Tidak ada wali kelas --</option>
               <option
@@ -197,7 +197,7 @@ function getGuruName(guruId: string | null | undefined): string {
           <div class="flex items-center justify-end space-x-2 pt-2">
             <button
               @click="isEditing = false"
-              class="rounded-lg px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200"
+              class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             >
               Batal
             </button>
@@ -214,9 +214,9 @@ function getGuruName(guruId: string | null | undefined): string {
     </div>
 
     <!-- Table Kelas -->
-    <div class="flex-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-lg">
-      <table class="w-full text-left text-xs text-slate-200">
-        <thead class="border-b border-slate-800 bg-slate-950/90 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+    <div class="flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg">
+      <table class="w-full text-left text-xs text-slate-800 dark:text-slate-200">
+        <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 uppercase tracking-wider dark:border-slate-800 dark:bg-slate-950/90 dark:text-slate-400">
           <tr>
             <th class="w-16 px-4 py-3.5 text-center">Urutan</th>
             <th class="px-4 py-3.5">Nama Rombel</th>
@@ -226,12 +226,12 @@ function getGuruName(guruId: string | null | undefined): string {
             <th class="w-40 px-4 py-3.5 text-right">Aksi</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-800/60">
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
           <tr
             v-if="store.proyek.master.kelas.length === 0"
             class="text-center"
           >
-            <td colspan="6" class="p-8 text-xs text-slate-500">
+            <td colspan="6" class="p-8 text-xs text-slate-400 dark:text-slate-500">
               Belum ada kelas. Klik tombol Tambah Kelas Baru di atas.
             </td>
           </tr>
@@ -239,7 +239,7 @@ function getGuruName(guruId: string | null | undefined): string {
           <tr
             v-for="(k, idx) in store.proyek.master.kelas"
             :key="k.id"
-            class="hover:bg-slate-900/40 transition-colors"
+            class="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors"
           >
             <!-- Tombol Urutan Naik / Turun -->
             <td class="px-4 py-3 text-center">
@@ -247,34 +247,34 @@ function getGuruName(guruId: string | null | undefined): string {
                 <button
                   :disabled="idx === 0"
                   @click="moveUp(idx)"
-                  class="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-20"
+                  class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-20"
                 >
                   <ChevronUp class="h-3.5 w-3.5" />
                 </button>
-                <span class="font-mono text-slate-400 text-xs w-4">{{ idx + 1 }}</span>
+                <span class="font-mono text-slate-500 dark:text-slate-400 text-xs w-4">{{ idx + 1 }}</span>
                 <button
                   :disabled="idx === store.proyek.master.kelas.length - 1"
                   @click="moveDown(idx)"
-                  class="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-20"
+                  class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-20"
                 >
                   <ChevronDown class="h-3.5 w-3.5" />
                 </button>
               </div>
             </td>
 
-            <td class="px-4 py-3 font-semibold text-slate-100 text-sm">
+            <td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100 text-sm">
               {{ k.nama }}
             </td>
 
-            <td class="px-4 py-3 text-slate-300">
-              <span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
+              <span class="rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 text-xs">
                 Kelas {{ k.tingkat || '-' }}
               </span>
             </td>
 
-            <td class="px-4 py-3 text-slate-300">
+            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
               <div class="flex items-center space-x-1.5">
-                <GraduationCap class="h-3.5 w-3.5 text-slate-500" />
+                <GraduationCap class="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                 <span>{{ getGuruName(k.wali_guru_id) }}</span>
               </div>
             </td>
@@ -285,8 +285,8 @@ function getGuruName(guruId: string | null | undefined): string {
                 :class="[
                   'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
                   getTerpasangCount(k.id) >= totalWeeklySlots
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                    : 'bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
                 ]"
               >
                 {{ getTerpasangCount(k.id) }} / {{ totalWeeklySlots }} JP
@@ -298,14 +298,14 @@ function getGuruName(guruId: string | null | undefined): string {
               <div class="flex items-center justify-end space-x-1">
                 <button
                   @click="editKelas(k)"
-                  class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+                  class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
                   title="Edit Kelas"
                 >
                   <Edit2 class="h-3.5 w-3.5" />
                 </button>
                 <button
                   @click="removeKelas(k.id)"
-                  class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition-colors"
+                  class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition-colors"
                   title="Hapus Kelas"
                 >
                   <Trash2 class="h-3.5 w-3.5" />
