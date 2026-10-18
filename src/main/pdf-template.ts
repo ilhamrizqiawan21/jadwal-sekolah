@@ -1,4 +1,5 @@
 import { ProyekData } from '../core/types'
+import { renggangkanLabel } from '../core/label-format'
 import { cellTextJP } from '../core/cell-parser'
 
 /**
@@ -101,7 +102,7 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
           }
         })
       } else {
-        const labelFormatted = `— ${(slot.label || '').toUpperCase().split('').join(' ')} —`
+        const labelFormatted = `— ${renggangkanLabel(slot.label || '')} —`
         cellsHtml = `<td colspan="${kelasList.length}" class="cell-nonkbm-merged font-bold tracking-widest">${escapeHtml(labelFormatted)}</td>`
       }
 

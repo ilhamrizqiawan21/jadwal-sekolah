@@ -3,14 +3,11 @@ import { ref, computed } from 'vue'
 import {
   AlertCircle,
   AlertTriangle,
-  Info,
   CheckCircle2,
-  ExternalLink,
+  Check,
   Search,
   Eye,
   PlusCircle,
-  ChevronRight,
-  BookOpen,
   PanelRightClose
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
@@ -41,16 +38,28 @@ const filteredPenugasan = computed(() => {
   return list.filter((p) => {
     const mapelMatch = p.mapel.toLowerCase().includes(q)
     const kodeMatch = p.kode.toLowerCase().includes(q)
-    const guru = store.proyek.master.guru.find((g) => g.id === p.guru_id)
-    const guruMatch = guru ? guru.nama.toLowerCase().includes(q) : false
+    const guruMatch = guruIdsOf(p).some((id) =>
+      (store.proyek.master.guru.find((g) => g.id === id)?.nama ?? '').toLowerCase().includes(q)
+    )
     return mapelMatch || kodeMatch || guruMatch
   })
 })
 
-function getGuruName(guruId: string | null | undefined): string {
-  if (!guruId) return 'Belum ditentukan'
-  const g = store.proyek.master.guru.find((guru) => guru.id === guruId)
-  return g ? g.nama : guruId
+function guruIdsOf(p: Penugasan): string[] {
+  return p.guru_ids && p.guru_ids.length > 0 ? p.guru_ids : p.guru_id ? [p.guru_id] : []
+}
+
+function getGuruName(p: Penugasan): string {
+  const names = guruIdsOf(p).map((id) => store.proyek.master.guru.find((g) => g.id === id)?.nama ?? id)
+  return names.length ? names.join(' & ') : 'Belum ditentukan'
+}
+
+function namaKelas(kelasId: string): string {
+  return store.proyek.master.kelas.find((k) => k.id === kelasId)?.nama ?? kelasId
+}
+
+function isSorot(p: Penugasan): boolean {
+  return uiStore.highlightedGuruId !== null && guruIdsOf(p).includes(uiStore.highlightedGuruId)
 }
 
 function getTotalBeban(p: Penugasan): number {
@@ -120,7 +129,7 @@ function applyCodeToSelectedCell(kode: string): void {
 </script>
 
 <template>
-  <div class="flex h-full w-80 flex-col border-l border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
+  <div class="flex h-full w-80 max-w-[90vw] flex-col border-l border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
     <!-- Tab Navigasi Sidebar -->
     <div class="flex border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950 px-2 pt-2">
       <button
@@ -141,9 +150,10 @@ function applyCodeToSelectedCell(kode: string): void {
         </span>
         <span
           v-else
-          class="rounded-full bg-emerald-100 dark:bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/20"
+          class="rounded-full bg-emerald-100 p-0.5 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+          aria-label="Tanpa bentrok"
         >
-          ✓
+          <Check class="h-3 w-3" />
         </span>
       </button>
 
@@ -231,7 +241,7 @@ function applyCodeToSelectedCell(kode: string): void {
                 :key="sIdx"
                 class="rounded bg-white dark:bg-slate-950 px-1 py-0.2 border border-slate-200 dark:border-transparent"
               >
-                {{ s[0] }} {{ s[1] }} ({{ s[2].replace('kelas:', '') }})
+                {{ s[0] }} {{ s[1] }} ({{ namaKelas(s[2]) }})
               </span>
             </div>
           </div>
@@ -266,7 +276,7 @@ function applyCodeToSelectedCell(kode: string): void {
           v-model="searchQuery"
           type="text"
           placeholder="Cari mapel, kode, guru..."
-          class="w-full rounded-lg border border-slate-300 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+          class="field"
         />
       </div>
 
@@ -284,14 +294,14 @@ function applyCodeToSelectedCell(kode: string): void {
           :key="p.id"
           :class="[
             'group rounded-xl border p-3 transition-all',
-            uiStore.highlightedGuruId === p.guru_id
+            isSorot(p)
               ? 'border-amber-400 bg-amber-50 dark:border-amber-400/60 dark:bg-amber-500/10'
               : 'border-slate-200 bg-slate-50 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700'
           ]"
         >
           <div class="flex items-center justify-between mb-1.5">
             <span class="rounded bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30 px-2 py-0.5 font-mono text-xs font-bold">
-              Kode: {{ p.kode }}
+              {{ p.kode }}
             </span>
             <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">
               {{ getTerpasangCount(p) }} / {{ getTotalBeban(p) }} JP
@@ -302,27 +312,27 @@ function applyCodeToSelectedCell(kode: string): void {
             {{ p.mapel }}
           </div>
           <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
-            {{ getGuruName(p.guru_id) }}
+            {{ getGuruName(p) }}
           </div>
 
           <!-- Aksi Cepat Kode -->
           <div class="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/80 pt-2 text-[10px]">
             <button
-              @click="toggleHighlightGuru(p.guru_id)"
+              @click="toggleHighlightGuru(guruIdsOf(p)[0])"
               :class="[
                 'flex items-center space-x-1 rounded px-2 py-1 transition-colors',
-                uiStore.highlightedGuruId === p.guru_id
+                isSorot(p)
                   ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300 font-semibold'
                   : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
               ]"
             >
               <Eye class="h-3 w-3" />
-              <span>{{ uiStore.highlightedGuruId === p.guru_id ? 'Lepas Sorot' : 'Sorot Guru' }}</span>
+              <span>{{ isSorot(p) ? 'Lepas Sorot' : 'Sorot Guru' }}</span>
             </button>
 
             <button
               @click="applyCodeToSelectedCell(p.kode)"
-              class="flex items-center space-x-1 rounded bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-500 transition-colors shadow-sm"
+              class="btn btn-primary !gap-1 !rounded-lg !px-2 !py-1 !text-[10px]"
               title="Isi kode ini ke sel yang sedang aktif di kisi jadwal"
             >
               <PlusCircle class="h-3 w-3" />

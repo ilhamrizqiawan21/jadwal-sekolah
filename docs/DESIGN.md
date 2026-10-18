@@ -17,7 +17,7 @@ graph TD
     end
 
     subgraph "IPC Bridge (Context Isolation & Preload)"
-        B1[secureBridge.api]
+        B1[window.api]
     end
 
     subgraph "Electron Renderer Process (Vue 3 + Vite + Tailwind)"
@@ -52,7 +52,7 @@ graph TD
 
 ### 1.1 Keunggulan Desain Ini
 1. **Core Engine Tanpa Ketergantungan UI**:
-   * Seluruh logika deteksi bentrok ([`checker.ts`](file:///C:/laragon/www/jadwal-sekolah/src/core/checker.ts)) dan pemodelan data adalah TypeScript murni.
+   * Seluruh logika deteksi bentrok ([`checker.ts`](../src/core/checker.ts)) dan pemodelan data adalah TypeScript murni.
    * Dapat diuji secara menyeluruh melalui unit test (Vitest) secara instan tanpa perlu menjalankan antarmuka grafis Electron.
 2. **Keamanan & Stabilitas**:
    * `contextIsolation: true` dan `nodeIntegration: false` pada BrowserWindow untuk mencegah kerentanan keamanan.

@@ -4,14 +4,20 @@
 {
   "appId": "com.jadwalsekolah.app",
   "productName": "Jadwal Sekolah",
+  "copyright": "Jadwal Sekolah",
   "directories": {
-    "buildResources": "build"
+    "buildResources": "resources",
+    "output": "release"
   },
   "files": [
-    "out/**/*"
+    "out/**/*",
+    "!**/*.map"
   ],
+  "asar": true,
   "win": {
     "executableName": "JadwalSekolah",
+    "icon": "resources/icon.png",
+    "requestedExecutionLevel": "asInvoker",
     "target": [
       {
         "target": "nsis",
@@ -27,6 +33,11 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
-    "createStartMenuShortcut": true
+    "createStartMenuShortcut": true,
+    "deleteAppDataOnUninstall": false,
+    "artifactName": "JadwalSekolah-Setup-${version}.${ext}"
+  },
+  "portable": {
+    "artifactName": "JadwalSekolah-Portable-${version}.${ext}"
   }
 }

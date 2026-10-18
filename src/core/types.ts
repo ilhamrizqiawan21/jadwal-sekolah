@@ -1,6 +1,6 @@
 /**
  * Model data & types untuk Jadwal Sekolah (v2)
- * Pure TypeScript — 0 UI dependency
+ * TypeScript murni tanpa ketergantungan UI
  */
 
 export type TingkatTingkat = 'SD' | 'SMP' | 'SMA' | 'SMK' | 'LAINNYA'
@@ -135,4 +135,13 @@ export interface HasilPemeriksaan {
   terpasang: Record<string, number> // key: "KODE:kelas_id" -> jumlah JP
   jumlah: (tingkat: MasalahTingkat) => number
   adaError: () => boolean
+}
+
+// ------------------------------------------------------------------ Cadangan
+export interface InfoCadangan {
+  name: string
+  path: string
+  size: number
+  createdAt: string
+  manual: boolean
 }

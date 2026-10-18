@@ -1,16 +1,29 @@
 import fs from 'fs'
 import path from 'path'
-import { ProyekData } from '../core/types'
+import { ProyekData, InfoCadangan } from '../core/types'
 import { getPresetStrukturWaktu } from '../core/default-presets'
+import { pastikanProyekValid } from '../core/project-validator'
 
 export const CURRENT_FORMAT_VERSION = 2
 export const APP_VERSION = '2.0.0'
 const DEFAULT_MAX_BACKUPS = 30
+const MAX_MANUAL_SNAPSHOTS = 100
+const MAX_FILE_BYTES = 64 * 1024 * 1024
+const BACKUP_DIR_NAME = 'cadangan'
 
 export interface SaveOptions {
   maxBackups?: number
   testDelayMs?: number
+  /**
+   * 'always'    : salin berkas lama ke cadangan setiap kali menimpa (simpan manual)
+   * 'throttled' : salin hanya jika cadangan otomatis terakhir lebih tua dari backupIntervalMs
+   * 'never'     : tanpa cadangan
+   */
+  backup?: 'always' | 'throttled' | 'never'
+  backupIntervalMs?: number
 }
+
+export type BackupInfo = InfoCadangan
 
 function formatDateStamp(date: Date): string {
   const y = date.getFullYear()
@@ -23,9 +36,97 @@ function formatDateStamp(date: Date): string {
   return `${y}${m}${d}-${hh}${mm}${ss}${ms}`
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function backupPattern(baseName: string): RegExp {
+  return new RegExp(`^${escapeRegExp(baseName)}-(\\d{8})-(\\d{9})(-manual)?\\.jadwal$`)
+}
+
+function parseStamp(date: string, time: string): Date {
+  return new Date(
+    Number(date.slice(0, 4)),
+    Number(date.slice(4, 6)) - 1,
+    Number(date.slice(6, 8)),
+    Number(time.slice(0, 2)),
+    Number(time.slice(2, 4)),
+    Number(time.slice(4, 6)),
+    Number(time.slice(6, 9))
+  )
+}
+
+export function backupDirFor(filePath: string): string {
+  return path.join(path.dirname(path.resolve(filePath)), BACKUP_DIR_NAME)
+}
+
+/** Daftar cadangan milik satu berkas proyek, terbaru lebih dulu. */
+export async function listBackups(filePath: string): Promise<BackupInfo[]> {
+  const dir = backupDirFor(filePath)
+  const pattern = backupPattern(path.parse(filePath).name)
+  let entries: string[]
+  try {
+    entries = await fs.promises.readdir(dir)
+  } catch {
+    return []
+  }
+  const result: BackupInfo[] = []
+  for (const name of entries) {
+    const m = pattern.exec(name)
+    if (!m) continue
+    try {
+      const full = path.join(dir, name)
+      const stat = await fs.promises.stat(full)
+      result.push({
+        name,
+        path: full,
+        size: stat.size,
+        createdAt: parseStamp(m[1], m[2]).toISOString(),
+        manual: Boolean(m[3])
+      })
+    } catch {
+      // berkas hilang di tengah pembacaan; lewati
+    }
+  }
+  return result.sort((a, b) => (a.name < b.name ? 1 : -1))
+}
+
+async function pruneBackups(filePath: string, maxBackups: number): Promise<void> {
+  const all = await listBackups(filePath)
+  const batas = [
+    { items: all.filter((b) => !b.manual), max: maxBackups },
+    { items: all.filter((b) => b.manual), max: MAX_MANUAL_SNAPSHOTS }
+  ]
+  for (const { items, max } of batas) {
+    for (const old of items.slice(max)) {
+      await fs.promises.unlink(old.path).catch(() => {})
+    }
+  }
+}
+
+async function writeFileDurable(target: string, content: string): Promise<void> {
+  const handle = await fs.promises.open(target, 'w')
+  try {
+    await handle.writeFile(content, 'utf-8')
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+}
+
+function serialize(data: ProyekData): string {
+  const payload: ProyekData = {
+    ...data,
+    format_version: CURRENT_FORMAT_VERSION,
+    app_version: APP_VERSION,
+    updated_at: new Date().toISOString()
+  }
+  return JSON.stringify(payload, null, 2)
+}
+
 /**
  * Menyimpan data proyek secara atomik (tulis ke .tmp lalu rename)
- * disertai pencadangan bergilir otomatis (rotating backup) ke folder `cadangan/`.
+ * disertai pencadangan bergilir otomatis ke folder `cadangan/`.
  */
 export async function saveProject(
   filePath: string,
@@ -33,55 +134,38 @@ export async function saveProject(
   options: SaveOptions = {}
 ): Promise<void> {
   const maxBackups = options.maxBackups ?? DEFAULT_MAX_BACKUPS
+  const mode = options.backup ?? 'always'
   const folder = path.dirname(path.resolve(filePath))
   await fs.promises.mkdir(folder, { recursive: true })
 
-  // Payload JSON siap simpan
-  const payload: ProyekData = {
-    ...data,
-    format_version: CURRENT_FORMAT_VERSION,
-    app_version: APP_VERSION,
-    updated_at: new Date().toISOString()
-  }
-  const jsonString = JSON.stringify(payload, null, 2)
+  const jsonString = serialize(data)
 
-  // Buat berkas sementara di direktori yang sama agar rename bersifat atomik (same filesystem)
+  // Berkas sementara di direktori yang sama agar rename bersifat atomik
   const tmpPath = path.join(
     folder,
     `.${path.basename(filePath)}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
   )
 
   try {
-    await fs.promises.writeFile(tmpPath, jsonString, 'utf-8')
+    await writeFileDurable(tmpPath, jsonString)
 
-    // Jika berkas asli sudah ada, buat salinan cadangan sebelum menimpanya
-    if (fs.existsSync(filePath) && maxBackups > 0) {
-      const backupDir = path.join(folder, 'cadangan')
-      await fs.promises.mkdir(backupDir, { recursive: true })
-
-      const baseName = path.parse(filePath).name
-      const stamp = formatDateStamp(new Date())
-      const backupPath = path.join(backupDir, `${baseName}-${stamp}.jadwal`)
-
+    if (fs.existsSync(filePath) && maxBackups > 0 && mode !== 'never') {
       try {
-        await fs.promises.copyFile(filePath, backupPath)
-
-        // Pangkas cadangan lama jika melebihi batas maxBackups
-        const allFiles = await fs.promises.readdir(backupDir)
-        const prefix = `${baseName}-`
-        const relevantBackups = allFiles
-          .filter((f) => f.startsWith(prefix) && f.endsWith('.jadwal'))
-          .sort()
-
-        if (relevantBackups.length > maxBackups) {
-          const toDelete = relevantBackups.slice(0, relevantBackups.length - maxBackups)
-          for (const oldFile of toDelete) {
-            try {
-              await fs.promises.unlink(path.join(backupDir, oldFile))
-            } catch {
-              // Abaikan kegagalan unlink cadangan lama
-            }
+        let perluCadangan = true
+        if (mode === 'throttled') {
+          const terakhir = (await listBackups(filePath)).find((b) => !b.manual)
+          const selang = options.backupIntervalMs ?? 10 * 60 * 1000
+          if (terakhir && Date.now() - new Date(terakhir.createdAt).getTime() < selang) {
+            perluCadangan = false
           }
+        }
+        if (perluCadangan) {
+          const backupDir = backupDirFor(filePath)
+          await fs.promises.mkdir(backupDir, { recursive: true })
+          const stamp = formatDateStamp(new Date())
+          const baseName = path.parse(filePath).name
+          await fs.promises.copyFile(filePath, path.join(backupDir, `${baseName}-${stamp}.jadwal`))
+          await pruneBackups(filePath, maxBackups)
         }
       } catch {
         // Jangan batalkan penyimpanan utama jika pembuatan cadangan gagal
@@ -92,19 +176,83 @@ export async function saveProject(
       await new Promise((r) => setTimeout(r, options.testDelayMs))
     }
 
-    // Atomic replace
     await fs.promises.rename(tmpPath, filePath)
   } catch (error) {
-    // Bersihkan file sementara jika terjadi error
-    try {
-      if (fs.existsSync(tmpPath)) {
-        await fs.promises.unlink(tmpPath)
-      }
-    } catch {
-      // Abaikan error unlink tmp
-    }
+    await fs.promises.unlink(tmpPath).catch(() => {})
     throw error
   }
+}
+
+/**
+ * Membuat cadangan manual (tidak ikut dipangkas oleh rotasi otomatis) dari data
+ * yang sedang dikerjakan, tanpa menimpa berkas proyek.
+ */
+export async function createManualSnapshot(
+  filePath: string,
+  data: ProyekData
+): Promise<BackupInfo> {
+  const backupDir = backupDirFor(filePath)
+  await fs.promises.mkdir(backupDir, { recursive: true })
+  const baseName = path.parse(filePath).name
+  const name = `${baseName}-${formatDateStamp(new Date())}-manual.jadwal`
+  const target = path.join(backupDir, name)
+  await writeFileDurable(target, serialize(data))
+  await pruneBackups(filePath, DEFAULT_MAX_BACKUPS)
+  const stat = await fs.promises.stat(target)
+  const m = backupPattern(baseName).exec(name)!
+  return {
+    name,
+    path: target,
+    size: stat.size,
+    createdAt: parseStamp(m[1], m[2]).toISOString(),
+    manual: true
+  }
+}
+
+/** Hanya berkas yang benar-benar terdaftar sebagai cadangan dari `filePath` boleh diakses. */
+export async function resolveBackup(filePath: string, backupPath: string): Promise<BackupInfo> {
+  const resolved = path.resolve(backupPath)
+  const found = (await listBackups(filePath)).find((b) => path.resolve(b.path) === resolved)
+  if (!found) throw new Error('Berkas cadangan tidak ditemukan atau bukan milik proyek ini')
+  return found
+}
+
+export async function deleteBackup(filePath: string, backupPath: string): Promise<void> {
+  const info = await resolveBackup(filePath, backupPath)
+  await fs.promises.unlink(info.path)
+}
+
+// ------------------------------------------------------------------ Draf pemulihan
+const DRAFT_NAME = 'draf-pemulihan.jadwal'
+
+export async function saveDraft(dir: string, data: ProyekData): Promise<void> {
+  await fs.promises.mkdir(dir, { recursive: true })
+  const target = path.join(dir, DRAFT_NAME)
+  const tmp = `${target}.${Date.now()}.tmp`
+  try {
+    await writeFileDurable(tmp, serialize(data))
+    await fs.promises.rename(tmp, target)
+  } catch (error) {
+    await fs.promises.unlink(tmp).catch(() => {})
+    throw error
+  }
+}
+
+export async function loadDraft(
+  dir: string
+): Promise<{ data: ProyekData; savedAt: string } | null> {
+  const target = path.join(dir, DRAFT_NAME)
+  try {
+    const stat = await fs.promises.stat(target)
+    const data = await loadProject(target)
+    return { data, savedAt: stat.mtime.toISOString() }
+  } catch {
+    return null
+  }
+}
+
+export async function clearDraft(dir: string): Promise<void> {
+  await fs.promises.unlink(path.join(dir, DRAFT_NAME)).catch(() => {})
 }
 
 /**
@@ -112,8 +260,21 @@ export async function saveProject(
  * dan migrasi otomatis dari format legacy (jadwal-mts v1).
  */
 export async function loadProject(filePath: string): Promise<ProyekData> {
+  const stat = await fs.promises.stat(filePath)
+  if (stat.size > MAX_FILE_BYTES) {
+    throw new Error('Ukuran berkas terlalu besar untuk berkas jadwal')
+  }
+
   const content = await fs.promises.readFile(filePath, 'utf-8')
-  const raw = JSON.parse(content)
+  let raw: any
+  try {
+    raw = JSON.parse(content)
+  } catch {
+    throw new Error('Berkas bukan berkas jadwal yang valid atau isinya rusak')
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Berkas bukan berkas jadwal yang valid atau isinya rusak')
+  }
 
   const formatVer = raw.format_version ?? raw.format ?? 1
 
@@ -125,10 +286,10 @@ export async function loadProject(filePath: string): Promise<ProyekData> {
 
   // Migrasi berkas legacy (v1 dari jadwal-mts) ke skema v2
   if (formatVer === 1) {
-    return migrateV1ToV2(raw)
+    return pastikanProyekValid(migrateV1ToV2(raw))
   }
 
-  return raw as ProyekData
+  return pastikanProyekValid(raw)
 }
 
 /**

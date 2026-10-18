@@ -1,421 +1,402 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type Component } from 'vue'
+import { useWindowSize } from '@vueuse/core'
 import {
-  Calendar,
+  CalendarDays,
   Users,
   Layers,
   GraduationCap,
   Settings,
-  FileSpreadsheet,
   Printer,
   Sun,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  ChevronLeft,
-  ChevronRight
+  FolderOpen,
+  Save,
+  Menu,
+  X,
+  DatabaseBackup,
+  Loader2,
+  Check,
+  AlertCircle
 } from 'lucide-vue-next'
 import { useScheduleStore } from './stores/scheduleStore'
 import { useUiStore, ActiveTab } from './stores/uiStore'
+import { useProjectFile } from './composables/useProjectFile'
 
-// Komponen
 import SchoolSetupWizard from './components/wizard/SchoolSetupWizard.vue'
-import ScheduleGridView from './components/grid/ScheduleGridView.vue'
-import IssueSidebar from './components/sidebar/IssueSidebar.vue'
+import ScheduleWorkspace from './components/grid/ScheduleWorkspace.vue'
 import GuruTab from './components/master/GuruTab.vue'
 import KelasTab from './components/master/KelasTab.vue'
 import BebanTab from './components/master/BebanTab.vue'
 import PengaturanTab from './components/master/PengaturanTab.vue'
+import BackupTab from './components/backup/BackupTab.vue'
+import WelcomeScreen from './components/welcome/WelcomeScreen.vue'
 import ExportPreviewModal from './components/export/ExportPreviewModal.vue'
+import AppBreadcrumb, { type Crumb } from './components/ui/AppBreadcrumb.vue'
+import ToastHost from './components/ui/ToastHost.vue'
+import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 
 const store = useScheduleStore()
-const uiStore = useUiStore()
+const ui = useUiStore()
+const files = useProjectFile()
+const { width } = useWindowSize()
 
-const isExporting = ref<boolean>(false)
-const exportStatusMessage = ref<string | null>(null)
-const isExportPreviewOpen = ref<boolean>(false)
+const isExportPreviewOpen = ref(false)
 const previewInitialTab = ref<'jadwal' | 'beban'>('jadwal')
+
+const isMobile = computed(() => width.value < 768)
+const isCompact = computed(() => width.value < 1100)
+const showRail = computed(() => !isMobile.value && ui.isLeftSidebarCollapsed)
+
+interface NavItem {
+  id: ActiveTab
+  label: string
+  icon: Component
+  group: string
+}
+
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: 'Jadwal',
+    items: [{ id: 'jadwal', label: 'Jadwal KBM', icon: CalendarDays, group: 'Jadwal' }]
+  },
+  {
+    label: 'Data Master',
+    items: [
+      { id: 'beban', label: 'Beban Mengajar', icon: Layers, group: 'Data Master' },
+      { id: 'guru', label: 'Guru dan Izin', icon: Users, group: 'Data Master' },
+      { id: 'kelas', label: 'Data Kelas', icon: GraduationCap, group: 'Data Master' }
+    ]
+  },
+  {
+    label: 'Berkas',
+    items: [
+      { id: 'cadangan', label: 'Cadangan', icon: DatabaseBackup, group: 'Berkas' },
+      { id: 'pengaturan', label: 'Pengaturan', icon: Settings, group: 'Berkas' }
+    ]
+  }
+]
+const allNav = navGroups.flatMap((g) => g.items)
+
+const currentNav = computed(() => allNav.find((n) => n.id === ui.activeTab) ?? allNav[0])
+
+const crumbs = computed<Crumb[]>(() => {
+  const nav = currentNav.value
+  const list: Crumb[] = [
+    {
+      label: store.proyek.meta.nama_sekolah || 'Jadwal Sekolah',
+      onClick: () => ui.setActiveTab('jadwal')
+    }
+  ]
+  if (store.isPristine) return list
+  const group = navGroups.find((g) => g.label === nav.group)
+  list.push({ label: nav.group, onClick: () => group && ui.setActiveTab(group.items[0].id) })
+  list.push({ label: nav.label })
+  if (nav.id === 'jadwal' && ui.selectedHariFilter !== 'all') {
+    list[list.length - 1].onClick = () => ui.setSelectedHariFilter('all')
+    list.push({ label: ui.selectedHariFilter })
+  }
+  return list
+})
+
+const views: Record<ActiveTab, Component> = {
+  jadwal: ScheduleWorkspace,
+  beban: BebanTab,
+  guru: GuruTab,
+  kelas: KelasTab,
+  cadangan: BackupTab,
+  pengaturan: PengaturanTab
+}
+const activeView = computed(() => views[ui.activeTab])
+
+const saveState = computed(() => {
+  if (files.isSaving.value) return 'saving'
+  if (files.saveError.value) return 'error'
+  if (store.dirty) return 'dirty'
+  return 'clean'
+})
+
+watch(saveState, (s) => ui.setAutoSaveStatus(s))
+
+// Judul jendela mengikuti nama berkas dan status simpan
+watch(
+  () => [store.filePath, store.dirty] as const,
+  ([path, dirty]) => {
+    const nama = path ? path.split(/[\\/]/).pop() : 'Proyek baru'
+    document.title = `${dirty ? '* ' : ''}${nama} - Jadwal Sekolah`
+  },
+  { immediate: true }
+)
+
+const jamTersimpan = computed(() =>
+  files.lastSavedAt.value
+    ? files.lastSavedAt.value.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : null
+)
 
 function openExportPreview(tab: 'jadwal' | 'beban' = 'jadwal'): void {
   previewInitialTab.value = tab
   isExportPreviewOpen.value = true
 }
 
-const navItems: { id: ActiveTab; label: string; icon: any }[] = [
-  { id: 'jadwal', label: 'Jadwal KBM', icon: Calendar },
-  { id: 'beban', label: 'Beban Mengajar', icon: Layers },
-  { id: 'guru', label: 'Guru & Izin', icon: Users },
-  { id: 'kelas', label: 'Data Kelas', icon: GraduationCap },
-  { id: 'pengaturan', label: 'Pengaturan', icon: Settings }
-]
-
-function showNotification(msg: string): void {
-  exportStatusMessage.value = msg
-  setTimeout(() => {
-    exportStatusMessage.value = null
-  }, 3000)
-}
-
-// ----------------------------------------------------------------- Berkas & Penyimpanan
-async function handleOpenFile(): Promise<void> {
-  try {
-    if (window.api?.openFileDialog) {
-      const res = await window.api.openFileDialog()
-      if (res && res.data) {
-        store.loadProjectData(res.data, res.filePath)
-        showNotification('✓ Berkas berhasil dimuat')
-      }
-    } else {
-      showNotification('Fitur berkas aktif pada mode aplikasi desktop Electron')
-    }
-  } catch (err: any) {
-    alert(`Gagal membuka berkas: ${err.message}`)
-  }
-}
-
-async function handleSaveFile(): Promise<void> {
-  try {
-    if (window.api?.saveProject) {
-      if (store.filePath) {
-        await window.api.saveProject(store.filePath, store.proyek)
-        store.dirty = false
-        showNotification('✓ Berhasil disimpan')
-      } else {
-        const savedPath = await window.api.saveFileDialog('jadwal-sekolah.jadwal', store.proyek)
-        if (savedPath) {
-          store.filePath = savedPath
-          store.dirty = false
-          showNotification('✓ Berhasil disimpan')
-        }
-      }
-    } else {
-      showNotification('Fitur simpan aktif pada mode desktop Electron')
-    }
-  } catch (err: any) {
-    alert(`Gagal menyimpan berkas: ${err.message}`)
-  }
-}
-
-async function handleExportExcel(): Promise<void> {
-  try {
-    if (window.api?.exportExcel) {
-      const savePath = await window.api.saveFileDialog('jadwal-sekolah.xlsx')
-      if (savePath) {
-        isExporting.value = true
-        await window.api.exportExcel(savePath, store.proyek)
-        isExporting.value = false
-        showNotification('✓ Ekspor Excel (.xlsx) selesai')
-      }
-    } else {
-      showNotification('Ekspor Excel tersedia di desktop')
-    }
-  } catch (err: any) {
-    isExporting.value = false
-    alert(`Gagal ekspor Excel: ${err.message}`)
-  }
-}
-
-async function handlePrintPdf(): Promise<void> {
-  try {
-    if (window.api?.printToPdf) {
-      const savePath = await window.api.saveFileDialog('jadwal-sekolah.pdf')
-      if (savePath) {
-        isExporting.value = true
-        await window.api.printToPdf(savePath, store.proyek)
-        isExporting.value = false
-        showNotification('✓ Berkas PDF berhasil dicetak')
-      }
-    } else {
-      window.print()
-    }
-  } catch (err: any) {
-    isExporting.value = false
-    alert(`Gagal mencetak PDF: ${err.message}`)
-  }
-}
-
 function handleGlobalKeyDown(e: KeyboardEvent): void {
-  // Ctrl+S / Cmd+S untuk simpan berkas
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
-    e.preventDefault()
-    handleSaveFile()
-    return
-  }
+  const mod = e.ctrlKey || e.metaKey
+  if (!mod) return
+  const key = e.key.toLowerCase()
 
-  // Ctrl+B / Cmd+B untuk toggle sidebar kiri
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'b') {
+  if (key === 's') {
     e.preventDefault()
-    uiStore.toggleLeftSidebar()
-    return
-  }
-
-  // Ctrl+I / Cmd+I untuk toggle panel masalah kanan (hindari Ctrl+Shift+I yang merupakan DevTools)
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'i') {
+    void (e.shiftKey ? files.saveProjectAs() : files.saveProject())
+  } else if (key === 'o' && !e.shiftKey) {
     e.preventDefault()
-    uiStore.toggleRightSidebar()
-    return
+    void files.openProject()
+  } else if (key === 'e' && !e.shiftKey) {
+    e.preventDefault()
+    openExportPreview()
+  } else if (key === 'b' && !e.shiftKey) {
+    e.preventDefault()
+    isMobile.value ? ui.setMobileNavOpen(!ui.isMobileNavOpen) : ui.toggleLeftSidebar()
+  } else if (key === 'i' && !e.shiftKey && ui.activeTab === 'jadwal') {
+    e.preventDefault()
+    ui.toggleRightSidebar()
   }
 }
 
-let lastWindowWidth = typeof window !== 'undefined' ? window.innerWidth : 1360
+// Menyesuaikan tata letak otomatis hanya saat jendela melintasi batas, bukan setiap piksel.
+watch(
+  isCompact,
+  (compact) => {
+    if (compact) {
+      ui.setLeftSidebarCollapsed(true)
+      ui.setRightSidebarOpen(false)
+    }
+  },
+  { immediate: true }
+)
+watch(isMobile, (m) => {
+  if (!m) ui.setMobileNavOpen(false)
+})
 
-function handleWindowResize(): void {
-  const currentWidth = window.innerWidth
-  // Jika jendela diperkecil melintasi batas 1024px, ciutkan sidebar kiri otomatis
-  if (currentWidth < 1024 && lastWindowWidth >= 1024 && !uiStore.isLeftSidebarCollapsed) {
-    uiStore.setLeftSidebarCollapsed(true)
-  }
-  // Jika jendela diperkecil melintasi batas 1100px, ciutkan panel masalah kanan otomatis
-  if (currentWidth < 1100 && lastWindowWidth >= 1100 && uiStore.isRightSidebarOpen) {
-    uiStore.setRightSidebarOpen(false)
-  }
-  lastWindowWidth = currentWidth
-}
-
-onMounted(() => {
-  uiStore.initTheme()
+onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeyDown)
-  window.addEventListener('resize', handleWindowResize)
-  handleWindowResize()
-
-  // Jika proyek baru pertama kali dan kelas masih kosong, tawarkan wizard
-  if (store.proyek.master.kelas.length === 0 && store.proyek.meta.nama_sekolah === 'Sekolah Baru') {
-    uiStore.setWizardOpen(true)
-  }
+  files.startAutosave()
+  await files.offerRecovery()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeyDown)
-  window.removeEventListener('resize', handleWindowResize)
+  files.stopAutosave()
 })
 </script>
 
 <template>
-  <div class="flex h-screen w-screen bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 overflow-hidden select-none">
-    <!-- Left Navigation Sidebar -->
+  <div class="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+    <!-- Latar gelap untuk laci navigasi pada layar sempit -->
+    <Transition name="modal">
+      <div
+        v-if="isMobile && ui.isMobileNavOpen"
+        class="fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-sm"
+        @click="ui.setMobileNavOpen(false)"
+      />
+    </Transition>
+
+    <!-- Navigasi -->
     <aside
       :class="[
-        'relative flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 transition-all duration-200 ease-in-out shrink-0 z-20',
-        uiStore.isLeftSidebarCollapsed ? 'w-16' : 'w-64'
+        'z-40 flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-200 ease-out dark:border-slate-800 dark:bg-slate-900',
+        isMobile
+          ? ['fixed inset-y-0 left-0 w-64', ui.isMobileNavOpen ? 'translate-x-0 shadow-float' : '-translate-x-full']
+          : showRail
+            ? 'w-[68px]'
+            : 'w-64'
       ]"
+      :aria-hidden="isMobile && !ui.isMobileNavOpen"
+      aria-label="Menu utama"
     >
-      <!-- Floating Edge Toggle Button (Mudah diklik di garis pembatas sidebar) -->
-      <button
-        @click="uiStore.toggleLeftSidebar"
-        class="absolute -right-3 top-4 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900 shadow-md text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:scale-110 transition-all focus:outline-none"
-        :title="uiStore.isLeftSidebarCollapsed ? 'Buka Sidebar (Ctrl+B)' : 'Ciutkan Sidebar (Ctrl+B)'"
-      >
-        <ChevronRight v-if="uiStore.isLeftSidebarCollapsed" class="h-3.5 w-3.5" />
-        <ChevronLeft v-else class="h-3.5 w-3.5" />
-      </button>
-
-      <!-- Header Sidebar: Expanded Mode (Logo + Info Sekolah + Tombol Ciutkan) -->
-      <div
-        v-if="!uiStore.isLeftSidebarCollapsed"
-        class="flex h-14 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5 shrink-0"
-      >
-        <div class="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 font-black text-sm text-white shadow-sm shadow-emerald-900/20">
-            JS
+      <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-3.5 dark:border-slate-800">
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-teal-500 text-white shadow-sm"
+        >
+          <CalendarDays class="h-[18px] w-[18px]" />
+        </div>
+        <div v-if="!showRail" class="min-w-0 flex-1">
+          <div class="truncate text-[13px] font-semibold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
+            {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
           </div>
-          <div class="min-w-0 flex-1 truncate">
-            <div class="flex items-center space-x-1.5">
-              <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
-                {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
-              </span>
-              <span
-                v-if="store.dirty"
-                class="h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse"
-                title="Ada perubahan belum disimpan"
-              />
-            </div>
-            <p class="truncate text-[10px] text-slate-500 dark:text-slate-400">
-              {{ store.proyek.meta.tahun_pelajaran || '2025/2026' }} • Sem. {{ store.proyek.meta.semester || 'GANJIL' }}
-            </p>
+          <div class="truncate text-[11px] text-slate-500 dark:text-slate-400">
+            {{ store.proyek.meta.tahun_pelajaran || 'Tahun pelajaran' }} &middot; Sem. {{ store.proyek.meta.semester }}
           </div>
         </div>
-
-        <!-- Tombol Ciutkan Sidebar -->
-        <button
-          @click="uiStore.toggleLeftSidebar"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/80 transition-colors"
-          title="Ciutkan Sidebar (Ctrl+B)"
-        >
-          <PanelLeftClose class="h-4 w-4" />
+        <button v-if="isMobile" class="btn-icon shrink-0" aria-label="Tutup menu" @click="ui.setMobileNavOpen(false)">
+          <X class="h-4 w-4" />
         </button>
       </div>
 
-      <!-- Header Sidebar: Collapsed Mode (Tombol Buka Terpusat Rapi & Proporsional) -->
-      <div
-        v-else
-        class="flex h-14 items-center justify-center border-b border-slate-200 dark:border-slate-800 px-2 shrink-0"
-      >
-        <button
-          @click="uiStore.toggleLeftSidebar"
-          class="group flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900 dark:hover:bg-emerald-500/15 border border-slate-200/80 dark:border-slate-800 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-all shadow-xs"
-          title="Buka Sidebar (Ctrl+B)"
-        >
-          <PanelLeftOpen class="h-5 w-5 transition-transform group-hover:scale-110" />
-        </button>
-      </div>
-
-      <!-- Scrollable Sidebar Body (Navigasi & Aksi) -->
-      <div class="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-4">
-        <!-- Section: Menu Utama -->
-        <div>
+      <nav class="flex-1 space-y-5 overflow-y-auto overflow-x-hidden p-2.5">
+        <div v-for="group in navGroups" :key="group.label">
           <div
-            v-if="!uiStore.isLeftSidebarCollapsed"
-            class="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+            v-if="!showRail"
+            class="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500"
           >
-            Menu Utama
+            {{ group.label }}
           </div>
-          <nav class="space-y-1">
+          <div v-else class="mx-auto mb-2 h-px w-6 bg-slate-200 first:hidden dark:bg-slate-800" />
+          <div class="space-y-0.5">
             <button
-              v-for="item in navItems"
+              v-for="item in group.items"
               :key="item.id"
-              @click="uiStore.setActiveTab(item.id)"
               :class="[
-                'flex items-center rounded-xl font-medium text-xs transition-all relative',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2.5 px-3 space-x-3',
-                uiStore.activeTab === item.id
-                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'
+                'group relative flex w-full items-center rounded-xl text-[13px] font-medium transition-colors',
+                showRail ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3 py-2.5',
+                ui.activeTab === item.id
+                  ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
               ]"
-              :title="item.label"
+              :title="showRail ? item.label : undefined"
+              :aria-current="ui.activeTab === item.id ? 'page' : undefined"
+              @click="ui.setActiveTab(item.id)"
             >
-              <div
-                v-if="!uiStore.isLeftSidebarCollapsed && uiStore.activeTab === item.id"
-                class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-emerald-600 dark:bg-emerald-400"
+              <span
+                v-if="ui.activeTab === item.id && !showRail"
+                class="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-brand-600 dark:bg-brand-400"
               />
-              <component :is="item.icon" class="h-4 w-4 shrink-0" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">{{ item.label }}</span>
+              <component :is="item.icon" class="h-[18px] w-[18px] shrink-0" />
+              <span v-if="!showRail" class="truncate">{{ item.label }}</span>
             </button>
-          </nav>
+          </div>
         </div>
 
-        <!-- Divider Halus Antar Seksi saat Collapsed -->
-        <div v-if="uiStore.isLeftSidebarCollapsed" class="w-8 h-px bg-slate-200 dark:bg-slate-800 mx-auto" />
-
-        <!-- Section: Cetak & Ekspor -->
         <div>
           <div
-            v-if="!uiStore.isLeftSidebarCollapsed"
-            class="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+            v-if="!showRail"
+            class="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500"
           >
-            Cetak & Ekspor
+            Keluaran
           </div>
-          <div class="space-y-1">
-            <!-- Cetak & Ekspor Tunggal (Buka Pratinjau A4 Terlebih Dahulu) -->
-            <button
-              @click="openExportPreview('jadwal')"
-              :class="[
-                'flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-                uiStore.isLeftSidebarCollapsed
-                  ? 'h-10 w-10 mx-auto justify-center'
-                  : 'w-full py-2.5 px-3 space-x-3'
-              ]"
-              title="Pratinjau Lembar Cetak Dokumen A4 & Ekspor"
-            >
-              <Printer class="h-4 w-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
-              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate font-medium">Cetak & Ekspor</span>
-            </button>
-          </div>
+          <div v-else class="mx-auto mb-2 h-px w-6 bg-slate-200 dark:bg-slate-800" />
+          <button
+            :class="[
+              'flex w-full items-center rounded-xl text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100',
+              showRail ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3 py-2.5'
+            ]"
+            :title="showRail ? 'Cetak dan Ekspor (Ctrl+E)' : undefined"
+            @click="openExportPreview('jadwal')"
+          >
+            <Printer class="h-[18px] w-[18px] shrink-0" />
+            <span v-if="!showRail" class="flex-1 truncate text-left">Cetak dan Ekspor</span>
+            <span v-if="!showRail" class="kbd">Ctrl E</span>
+          </button>
         </div>
-      </div>
+      </nav>
 
-      <!-- Footer Sidebar: Switch Tema & Info Status -->
-      <div class="border-t border-slate-200 dark:border-slate-800 p-2 space-y-1.5 shrink-0">
-        <!-- Tombol Switch Tema -->
+      <div class="shrink-0 space-y-1 border-t border-slate-200 p-2.5 dark:border-slate-800">
         <button
-          @click="uiStore.toggleTheme"
           :class="[
-            'flex items-center rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
-            uiStore.isLeftSidebarCollapsed
-              ? 'h-10 w-10 mx-auto justify-center'
-              : 'w-full py-2 px-3 justify-between'
+            'flex w-full items-center rounded-xl text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100',
+            showRail ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3 py-2.5'
           ]"
-          :title="uiStore.theme === 'dark' ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'"
+          :title="ui.theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'"
+          @click="ui.toggleTheme"
         >
-          <div class="flex items-center space-x-2.5">
-            <Sun v-if="uiStore.theme === 'dark'" class="h-4 w-4 shrink-0 text-amber-400" />
-            <Moon v-else class="h-4 w-4 shrink-0 text-indigo-500" />
-            <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">
-              {{ uiStore.theme === 'dark' ? 'Mode Gelap' : 'Mode Terang' }}
-            </span>
-          </div>
-          <span
-            v-if="!uiStore.isLeftSidebarCollapsed"
-            class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-          >
-            {{ uiStore.theme }}
-          </span>
+          <Sun v-if="ui.theme === 'dark'" class="h-[18px] w-[18px] shrink-0" />
+          <Moon v-else class="h-[18px] w-[18px] shrink-0" />
+          <span v-if="!showRail" class="truncate">{{ ui.theme === 'dark' ? 'Mode terang' : 'Mode gelap' }}</span>
         </button>
-
-        <!-- Informasi Berkas Ringkas (Expanded Only) -->
-        <div v-if="!uiStore.isLeftSidebarCollapsed" class="px-2 pt-0.5 text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center space-x-1.5">
-          <span class="truncate" :title="store.filePath || 'Belum disimpan'">
-            📁 {{ store.filePath ? store.filePath.split(/[\\/]/).pop() : 'Belum tersimpan di disk' }}
-          </span>
-        </div>
+        <button
+          v-if="!isMobile"
+          :class="[
+            'flex w-full items-center rounded-xl text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100',
+            showRail ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3 py-2.5'
+          ]"
+          :title="showRail ? 'Lebarkan menu (Ctrl+B)' : 'Ciutkan menu (Ctrl+B)'"
+          @click="ui.toggleLeftSidebar"
+        >
+          <PanelLeftOpen v-if="showRail" class="h-[18px] w-[18px] shrink-0" />
+          <PanelLeftClose v-else class="h-[18px] w-[18px] shrink-0" />
+          <span v-if="!showRail" class="truncate">Ciutkan menu</span>
+        </button>
       </div>
     </aside>
 
-    <!-- Area Konten Utama (Right Workspace) -->
-    <div class="flex flex-1 flex-col overflow-hidden">
-      <!-- Notifikasi Status Aksi (Jika ada toast ekspor/simpan) -->
-      <div
-        v-if="exportStatusMessage"
-        class="bg-emerald-600 px-4 py-1 text-center text-xs font-semibold text-white animate-in slide-in-from-top duration-150 shrink-0"
+    <!-- Area kerja -->
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header
+        class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white/80 px-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 sm:px-4"
       >
-        {{ exportStatusMessage }}
-      </div>
+        <button v-if="isMobile" class="btn-icon shrink-0" aria-label="Buka menu" @click="ui.setMobileNavOpen(true)">
+          <Menu class="h-5 w-5" />
+        </button>
 
-      <!-- Workspace Konten Tab -->
-      <main class="flex flex-1 overflow-hidden">
-        <!-- Tab 1: Kisi Jadwal & Panel Masalah -->
-        <div v-if="uiStore.activeTab === 'jadwal'" class="flex h-full w-full overflow-hidden">
-          <div class="flex-1 overflow-hidden">
-            <ScheduleGridView />
-          </div>
-          <IssueSidebar v-if="uiStore.isRightSidebarOpen" />
-        </div>
+        <AppBreadcrumb :items="crumbs" class="min-w-0 flex-1" />
 
-        <!-- Tab 2: Beban Mengajar -->
-        <div v-else-if="uiStore.activeTab === 'beban'" class="h-full w-full overflow-hidden">
-          <BebanTab />
-        </div>
+        <button
+          :class="[
+            'chip shrink-0 cursor-pointer transition',
+            saveState === 'error'
+              ? 'bg-conflict-50 text-conflict-700 hover:bg-conflict-100 dark:bg-conflict-500/15 dark:text-conflict-300'
+              : saveState === 'dirty'
+                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+          ]"
+          :title="files.saveError.value ?? (store.filePath ? 'Klik untuk menyimpan sekarang (Ctrl+S)' : 'Belum disimpan ke berkas')"
+          @click="files.saveProject()"
+        >
+          <Loader2 v-if="saveState === 'saving'" class="h-3 w-3 animate-spin" />
+          <AlertCircle v-else-if="saveState === 'error'" class="h-3 w-3" />
+          <span v-else-if="saveState === 'dirty'" class="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          <Check v-else class="h-3 w-3" />
+          <span v-if="!isMobile">
+            {{
+              saveState === 'saving'
+                ? 'Menyimpan...'
+                : saveState === 'error'
+                  ? 'Gagal menyimpan'
+                  : saveState === 'dirty'
+                    ? 'Belum disimpan'
+                    : jamTersimpan
+                      ? `Tersimpan ${jamTersimpan}`
+                      : store.filePath
+                        ? 'Tersimpan'
+                        : 'Proyek baru'
+            }}
+          </span>
+        </button>
 
-        <!-- Tab 3: Guru & Jam Berhalangan -->
-        <div v-else-if="uiStore.activeTab === 'guru'" class="h-full w-full overflow-hidden">
-          <GuruTab />
-        </div>
+        <div class="hidden h-5 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
 
-        <!-- Tab 4: Kelas & Rombel -->
-        <div v-else-if="uiStore.activeTab === 'kelas'" class="h-full w-full overflow-hidden">
-          <KelasTab />
-        </div>
+        <button class="btn btn-secondary hidden sm:inline-flex" title="Buka berkas (Ctrl+O)" @click="files.openProject()">
+          <FolderOpen class="h-3.5 w-3.5" />
+          <span class="hidden lg:inline">Buka</span>
+        </button>
+        <button class="btn btn-primary" title="Simpan (Ctrl+S)" @click="files.saveProject()">
+          <Save class="h-3.5 w-3.5" />
+          <span class="hidden sm:inline">Simpan</span>
+        </button>
+      </header>
 
-        <!-- Tab 5: Pengaturan -->
-        <div v-else-if="uiStore.activeTab === 'pengaturan'" class="h-full w-full overflow-hidden">
-          <PengaturanTab @open-wizard="uiStore.setWizardOpen(true)" />
-        </div>
+      <main class="relative min-h-0 flex-1 overflow-hidden">
+        <WelcomeScreen v-if="store.isPristine && !ui.isWizardOpen" />
+
+        <Transition v-else name="page" mode="out-in">
+          <KeepAlive include="ScheduleWorkspace">
+            <component :is="activeView" :key="ui.activeTab" />
+          </KeepAlive>
+        </Transition>
       </main>
     </div>
 
-    <!-- Modal Wizard Onboarding Setup Sekolah Baru -->
-    <SchoolSetupWizard
-      v-model="uiStore.isWizardOpen"
-      @completed="uiStore.setActiveTab('jadwal')"
-    />
+    <SchoolSetupWizard v-model="ui.isWizardOpen" @completed="ui.setActiveTab('jadwal')" />
 
-    <!-- Modal Pratinjau Dokumen Cetak Resmi Sebelum Simpan File -->
     <ExportPreviewModal
       v-model="isExportPreviewOpen"
       :initial-tab="previewInitialTab"
-      @export-pdf="handlePrintPdf"
-      @export-excel="handleExportExcel"
+      @export-pdf="files.exportFile('pdf')"
+      @export-excel="files.exportFile('xlsx')"
     />
+
+    <ConfirmDialog />
+    <ToastHost />
   </div>
 </template>

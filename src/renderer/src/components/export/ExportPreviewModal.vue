@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import {
   X,
   FileSpreadsheet,
@@ -9,10 +9,12 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  FileText
+  Loader2
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useProjectFile } from '../../composables/useProjectFile'
 import { cellTextJP } from '@core/cell-parser'
+import { renggangkanLabel } from '@core/label-format'
 
 const props = defineProps<{
   modelValue: boolean
@@ -26,6 +28,18 @@ const emit = defineEmits<{
 }>()
 
 const store = useScheduleStore()
+const files = useProjectFile()
+const rootEl = ref<HTMLElement | null>(null)
+
+watch(
+  () => props.modelValue,
+  async (open) => {
+    if (!open) return
+    activeDocTab.value = props.initialTab ?? 'jadwal'
+    await nextTick()
+    rootEl.value?.focus()
+  }
+)
 
 const activeDocTab = ref<'jadwal' | 'beban'>('jadwal')
 const zoomLevel = ref<number>(100)
@@ -86,7 +100,7 @@ function triggerExportExcel(): void {
 // Format teks label non-KBM (misal: "I S T I R A H A T")
 function formatNonKbmLabel(label: string): string {
   if (!label) return '—'
-  return `— ${label.toUpperCase().split('').join(' ')} —`
+  return `— ${renggangkanLabel(label)} —`
 }
 
 // Format rentang jam menjadi satu baris bersih (misal: "07.20 - 08.40")
@@ -117,13 +131,21 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
 </script>
 
 <template>
+  <Teleport to="body">
+  <Transition name="modal">
   <div
     v-if="modelValue"
-    class="fixed inset-0 z-50 flex flex-col bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200"
+    ref="rootEl"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Pratinjau lembar cetak"
+    tabindex="-1"
+    class="fixed inset-0 z-50 flex flex-col bg-slate-950/85 outline-none backdrop-blur-md"
+    @keydown.esc.stop="closeModal"
   >
     <!-- Header Toolbar Modal -->
     <header
-      class="flex h-14 shrink-0 items-center justify-between border-b border-slate-700 bg-slate-900 px-6 text-white shadow-lg"
+      class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-700 bg-slate-900 px-4 text-white shadow-lg sm:px-6"
     >
       <!-- Judul & Badge Kertas -->
       <div class="flex items-center space-x-3">
@@ -133,14 +155,14 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
           <Printer class="h-4 w-4" />
         </div>
         <div>
-          <h2 class="text-sm font-semibold tracking-wide text-slate-100 flex items-center space-x-2">
-            <span>Pratinjau Lembar Cetak Dokumen</span>
-            <span class="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-emerald-400 border border-slate-700">
-              Kertas: A4 Standar
+          <h2 class="flex items-center space-x-2 whitespace-nowrap text-sm font-semibold tracking-wide text-slate-100">
+            <span>Pratinjau cetak</span>
+            <span class="hidden rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-emerald-400 border border-slate-700 lg:inline">
+              A4 lanskap
             </span>
           </h2>
-          <p class="text-[11px] text-slate-400">
-            Periksa format kop sekolah, garis pemisah, dan tanda tangan sebelum menyimpan
+          <p class="hidden text-[11px] text-slate-400 xl:block">
+            Periksa kop, garis pemisah, dan tanda tangan sebelum menyimpan
           </p>
         </div>
       </div>
@@ -157,7 +179,7 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
           ]"
         >
           <Calendar class="h-3.5 w-3.5" />
-          <span>1. Matriks Jadwal Pelajaran</span>
+          <span class="whitespace-nowrap">Matriks jadwal</span>
         </button>
 
         <button
@@ -170,7 +192,7 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
           ]"
         >
           <Layers class="h-3.5 w-3.5" />
-          <span>2. Lampiran Beban Mengajar</span>
+          <span class="whitespace-nowrap">Beban mengajar</span>
         </button>
       </div>
 
@@ -205,28 +227,32 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
         <!-- Tombol Simpan PDF -->
         <button
           @click="triggerExportPdf"
-          class="flex items-center space-x-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition-colors shadow-sm shadow-indigo-900/40"
+          :disabled="files.isExporting.value"
+          class="btn bg-indigo-600 text-white hover:bg-indigo-500"
           title="Simpan sebagai berkas PDF resmi (A4)"
         >
-          <Printer class="h-3.5 w-3.5" />
-          <span>Simpan PDF (A4)</span>
+          <Loader2 v-if="files.isExporting.value" class="h-3.5 w-3.5 animate-spin" />
+          <Printer v-else class="h-3.5 w-3.5" />
+          <span class="whitespace-nowrap">Simpan PDF</span>
         </button>
 
         <!-- Tombol Ekspor Excel -->
         <button
           @click="triggerExportExcel"
-          class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-sm shadow-emerald-900/40"
+          :disabled="files.isExporting.value"
+          class="btn btn-primary"
           title="Ekspor sebagai buku kerja Excel (.xlsx)"
         >
           <FileSpreadsheet class="h-3.5 w-3.5" />
-          <span>Ekspor Excel (.xlsx)</span>
+          <span class="whitespace-nowrap">Ekspor Excel</span>
         </button>
 
         <!-- Tutup Modal -->
         <button
           @click="closeModal"
           class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors ml-1"
-          title="Tutup Pratinjau"
+          title="Tutup pratinjau (Esc)"
+          aria-label="Tutup pratinjau"
         >
           <X class="h-5 w-5" />
         </button>
@@ -517,4 +543,6 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
       </div>
     </div>
   </div>
+  </Transition>
+  </Teleport>
 </template>

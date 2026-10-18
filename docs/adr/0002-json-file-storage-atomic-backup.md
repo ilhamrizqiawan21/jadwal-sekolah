@@ -1,4 +1,4 @@
-# ADR-0002: Strategi Penyimpanan — Dokumen Mandiri JSON `.jadwal` dengan Atomic Save & Rotating Backup
+# ADR-0002: Strategi Penyimpanan - Dokumen Mandiri JSON `.jadwal` dengan Atomic Save & Rotating Backup
 
 **Date**: 2026-10-18
 **Status**: accepted

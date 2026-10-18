@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   School,
   Calendar,
@@ -7,9 +7,8 @@ import {
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
-  X,
-  Upload,
-  Sparkles
+  Check,
+  Upload
 } from 'lucide-vue-next'
 import { TingkatTingkat, SemesterTipe } from '@core/types'
 import {
@@ -18,6 +17,10 @@ import {
   buildProjectFromWizard
 } from '@core/wizard-builder'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useNotifyStore } from '../../stores/notifyStore'
+import { useProjectFile } from '../../composables/useProjectFile'
+import { bacaGambarSebagaiDataUrl } from '../../utils/image'
+import BaseModal from '../ui/BaseModal.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -29,6 +32,8 @@ const emit = defineEmits<{
 }>()
 
 const scheduleStore = useScheduleStore()
+const notify = useNotifyStore()
+const files = useProjectFile()
 
 const currentStep = ref<number>(1)
 const validationErrors = ref<string[]>([])
@@ -46,6 +51,16 @@ const profile = ref<WizardProfileData>({
   ttd_base64: ''
 })
 
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) {
+      currentStep.value = 1
+      validationErrors.value = []
+    }
+  }
+)
+
 const polaHari = ref<5 | 6>(5)
 const presetJenjang = ref<TingkatTingkat>('SMP')
 
@@ -54,17 +69,18 @@ function onJenjangChange(): void {
   presetJenjang.value = profile.value.jenjang
 }
 
-function handleImageUpload(field: 'kop_base64' | 'ttd_base64', event: Event): void {
+async function handleImageUpload(field: 'kop_base64' | 'ttd_base64', event: Event): Promise<void> {
   const target = event.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    const file = target.files[0]
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (typeof e.target?.result === 'string') {
-        profile.value[field] = e.target.result
-      }
-    }
-    reader.readAsDataURL(file)
+  const file = target.files?.[0]
+  if (!file) return
+  try {
+    profile.value[field] = await bacaGambarSebagaiDataUrl(file, {
+      maksDimensi: field === 'kop_base64' ? 1200 : 400
+    })
+  } catch (err) {
+    notify.error('Gambar tidak dapat dipakai', err instanceof Error ? err.message : undefined)
+  } finally {
+    target.value = ''
   }
 }
 
@@ -91,7 +107,21 @@ function prevStep(): void {
   }
 }
 
-function finishWizard(): void {
+async function finishWizard(): Promise<void> {
+  // Wizard membuat proyek baru; pekerjaan yang sedang terbuka tidak boleh hilang diam-diam.
+  if (!scheduleStore.isPristine) {
+    if (scheduleStore.dirty) {
+      if (!(await files.confirmLeaveDirty('membuat proyek baru'))) return
+    } else {
+      const ok = await notify.confirm({
+        title: 'Ganti proyek yang sedang terbuka?',
+        message: 'Wizard membuat proyek kosong baru dan menutup jadwal yang sedang dikerjakan.',
+        confirmLabel: 'Buat proyek baru',
+        danger: true
+      })
+      if (!ok) return
+    }
+  }
   const newProject = buildProjectFromWizard(
     profile.value,
     polaHari.value,
@@ -115,34 +145,15 @@ const steps = [
 </script>
 
 <template>
-  <div
-    v-if="modelValue"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+  <BaseModal
+    :model-value="modelValue"
+    size="xl"
+    title="Setup proyek jadwal baru"
+    description="Atur profil, pola hari, dan alokasi waktu KBM."
+    persistent
+    @update:model-value="emit('update:modelValue', $event)"
   >
-    <div
-      class="flex max-h-[90vh] h-[620px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
-    >
-      <!-- Header Wizard -->
-      <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-950/80">
-        <div class="flex items-center space-x-3">
-          <div
-            class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-          >
-            <Sparkles class="h-5 w-5" />
-          </div>
-          <div>
-            <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">Setup Proyek Jadwal Baru</h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Konfigurasi otomatis profil, pola hari, dan alokasi waktu KBM</p>
-          </div>
-        </div>
-        <button
-          @click="closeModal"
-          class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
-        >
-          <X class="h-5 w-5" />
-        </button>
-      </div>
-
+    <div class="-mx-6 -my-5 flex min-h-[26rem] flex-col">
       <!-- Step Indicator Bar -->
       <div class="border-b border-slate-200/80 bg-slate-50/50 px-6 py-3 dark:border-slate-800/80 dark:bg-slate-950/40">
         <div class="flex items-center justify-between">
@@ -182,7 +193,7 @@ const steps = [
       </div>
 
       <!-- Step Content Area -->
-      <div class="flex-1 overflow-y-auto p-6 text-slate-800 dark:text-slate-200">
+      <div class="flex-1 p-6 text-slate-800 dark:text-slate-200">
         <!-- Error Banner -->
         <div
           v-if="validationErrors.length > 0"
@@ -203,7 +214,7 @@ const steps = [
                 v-model="profile.nama_sekolah"
                 type="text"
                 placeholder="Contoh: SMP Negeri 1 Merdeka atau MTs Nurul Huda"
-                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
+                class="field"
               />
             </div>
 
@@ -212,7 +223,7 @@ const steps = [
               <select
                 v-model="profile.jenjang"
                 @change="onJenjangChange"
-                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                class="field"
               >
                 <option value="SD">SD / MI (Sekolah Dasar / Madrasah Ibtidaiyah)</option>
                 <option value="SMP">SMP / MTs (Sekolah Menengah Pertama)</option>
@@ -227,7 +238,7 @@ const steps = [
                 v-model="profile.tahun_pelajaran"
                 type="text"
                 placeholder="2026/2027"
-                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
+                class="field"
               />
             </div>
 
@@ -267,7 +278,7 @@ const steps = [
                 v-model="profile.kota_tanggal"
                 type="text"
                 placeholder="Contoh: Jakarta, 13 Juli 2026"
-                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                class="field"
               />
             </div>
 
@@ -277,7 +288,7 @@ const steps = [
                 v-model="profile.kepala_sekolah_nama"
                 type="text"
                 placeholder="Nama lengkap beserta gelar"
-                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                class="field"
               />
             </div>
 
@@ -287,7 +298,7 @@ const steps = [
                 v-model="profile.kepala_sekolah_nip"
                 type="text"
                 placeholder="19xxxxxxxxxxxxxx (opsional / jika ada)"
-                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                class="field"
               />
             </div>
 
@@ -296,22 +307,22 @@ const steps = [
               <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kop / Logo Sekolah (Opsional)</label>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png, image/jpeg"
                 @change="(e) => handleImageUpload('kop_base64', e)"
                 class="text-xs text-slate-500 file:mr-2 file:rounded-md file:border-0 file:bg-slate-200 file:px-2.5 file:py-1 file:text-xs file:text-slate-700 hover:file:bg-slate-300 dark:text-slate-400 dark:file:bg-slate-800 dark:file:text-slate-200 dark:hover:file:bg-slate-700"
               />
-              <span v-if="profile.kop_base64" class="block text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">✓ Berkas logo terpilih</span>
+              <span v-if="profile.kop_base64" class="block text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">Logo terpilih</span>
             </div>
 
             <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/60">
               <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Scan Tanda Tangan (Opsional)</label>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png, image/jpeg"
                 @change="(e) => handleImageUpload('ttd_base64', e)"
                 class="text-xs text-slate-500 file:mr-2 file:rounded-md file:border-0 file:bg-slate-200 file:px-2.5 file:py-1 file:text-xs file:text-slate-700 hover:file:bg-slate-300 dark:text-slate-400 dark:file:bg-slate-800 dark:file:text-slate-200 dark:hover:file:bg-slate-700"
               />
-              <span v-if="profile.ttd_base64" class="block text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">✓ Berkas tanda tangan terpilih</span>
+              <span v-if="profile.ttd_base64" class="block text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">Tanda tangan terpilih</span>
             </div>
           </div>
         </div>
@@ -325,7 +336,7 @@ const steps = [
           <div class="grid grid-cols-2 gap-4">
             <!-- Pilihan 5 Hari -->
             <div
-              @click="polaHari = 5"
+              role="radio" tabindex="0" :aria-checked="polaHari === 5" @keydown.enter.prevent="polaHari = 5" @keydown.space.prevent="polaHari = 5" @click="polaHari = 5"
               :class="[
                 'cursor-pointer rounded-2xl border p-5 transition-all',
                 polaHari === 5
@@ -343,7 +354,7 @@ const steps = [
                       : 'border-slate-300 dark:border-slate-700'
                   ]"
                 >
-                  <span v-if="polaHari === 5">✓</span>
+                  <Check v-if="polaHari === 5" class="h-3 w-3" />
                 </span>
               </div>
               <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
@@ -360,7 +371,7 @@ const steps = [
 
             <!-- Pilihan 6 Hari -->
             <div
-              @click="polaHari = 6"
+              role="radio" tabindex="0" :aria-checked="polaHari === 6" @keydown.enter.prevent="polaHari = 6" @keydown.space.prevent="polaHari = 6" @click="polaHari = 6"
               :class="[
                 'cursor-pointer rounded-2xl border p-5 transition-all',
                 polaHari === 6
@@ -378,7 +389,7 @@ const steps = [
                       : 'border-slate-300 dark:border-slate-700'
                   ]"
                 >
-                  <span v-if="polaHari === 6">✓</span>
+                  <Check v-if="polaHari === 6" class="h-3 w-3" />
                 </span>
               </div>
               <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
@@ -449,7 +460,7 @@ const steps = [
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ profile.jenjang }} (Preset {{ presetJenjang }})</div>
 
               <div class="text-slate-500 dark:text-slate-400">Tahun Pelajaran:</div>
-              <div class="font-medium text-slate-900 dark:text-slate-100">{{ profile.tahun_pelajaran }} — Semester {{ profile.semester }}</div>
+              <div class="font-medium text-slate-900 dark:text-slate-100">{{ profile.tahun_pelajaran }}, Semester {{ profile.semester }}</div>
 
               <div class="text-slate-500 dark:text-slate-400">Pola Hari:</div>
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ polaHari }} Hari Kerja</div>
@@ -473,50 +484,28 @@ const steps = [
         </div>
       </div>
 
-      <!-- Footer Buttons -->
-      <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-950/80">
+    </div>
+
+    <template #footer>
+      <div class="flex w-full items-center justify-between">
         <div>
-          <button
-            v-if="currentStep > 1"
-            type="button"
-            @click="prevStep"
-            class="flex items-center space-x-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
-          >
+          <button v-if="currentStep > 1" type="button" class="btn btn-secondary" @click="prevStep">
             <ChevronLeft class="h-4 w-4" />
-            <span>Sebelumnya</span>
+            Sebelumnya
           </button>
         </div>
-
-        <div class="flex items-center space-x-2.5">
-          <button
-            type="button"
-            @click="closeModal"
-            class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-          >
-            Batal
-          </button>
-
-          <button
-            v-if="currentStep < 4"
-            type="button"
-            @click="nextStep"
-            class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20"
-          >
-            <span>Lanjut</span>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn btn-ghost" @click="closeModal">Batal</button>
+          <button v-if="currentStep < 4" type="button" class="btn btn-primary" @click="nextStep">
+            Lanjut
             <ChevronRight class="h-4 w-4" />
           </button>
-
-          <button
-            v-else
-            type="button"
-            @click="finishWizard"
-            class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
-          >
+          <button v-else type="button" class="btn btn-primary" @click="finishWizard">
             <CheckCircle2 class="h-4 w-4" />
-            <span>Buat Proyek Jadwal</span>
+            Buat proyek jadwal
           </button>
         </div>
       </div>
-    </div>
-  </div>
+    </template>
+  </BaseModal>
 </template>

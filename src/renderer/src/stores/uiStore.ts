@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export type ThemeMode = 'dark' | 'light'
-export type ActiveTab = 'jadwal' | 'beban' | 'guru' | 'kelas' | 'pengaturan'
+export type ActiveTab = 'jadwal' | 'beban' | 'guru' | 'kelas' | 'cadangan' | 'pengaturan'
 export type SidebarTab = 'issues' | 'codes'
 export type AutoSaveStatus = 'clean' | 'dirty' | 'saving' | 'error'
 
@@ -12,10 +12,27 @@ export interface SelectedCell {
   kelasId: string
 }
 
+function bacaPref(key: string): string | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
+  } catch {
+    return null
+  }
+}
+
+function tulisPref(key: string, value: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(key, value)
+  } catch {
+    // penyimpanan lokal tidak tersedia; preferensi tidak dipertahankan
+  }
+}
+
 function getInitialTheme(): ThemeMode {
-  if (typeof localStorage !== 'undefined') {
-    const saved = localStorage.getItem('js_theme')
-    if (saved === 'dark' || saved === 'light') return saved
+  const saved = bacaPref('js_theme')
+  if (saved === 'dark' || saved === 'light') return saved
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
   }
   return 'dark'
 }
@@ -33,6 +50,8 @@ export const useUiStore = defineStore('ui', () => {
   const isRightSidebarOpen = ref<boolean>(true)
   const selectedHariFilter = ref<string>('all')
   const gridDensity = ref<'compact' | 'large'>('compact')
+  const isMobileNavOpen = ref<boolean>(false)
+  const autoSaveEnabled = ref<boolean>(bacaPref('js_autosave') !== 'off')
 
   function toggleLeftSidebar(): void {
     isLeftSidebarCollapsed.value = !isLeftSidebarCollapsed.value
@@ -64,15 +83,9 @@ export const useUiStore = defineStore('ui', () => {
 
   function setTheme(mode: ThemeMode): void {
     theme.value = mode
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('js_theme', mode)
-    }
+    tulisPref('js_theme', mode)
     if (typeof document !== 'undefined') {
-      if (mode === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
+      document.documentElement.classList.toggle('dark', mode === 'dark')
     }
   }
 
@@ -86,6 +99,16 @@ export const useUiStore = defineStore('ui', () => {
 
   function setActiveTab(tab: ActiveTab): void {
     activeTab.value = tab
+    isMobileNavOpen.value = false
+  }
+
+  function setMobileNavOpen(open: boolean): void {
+    isMobileNavOpen.value = open
+  }
+
+  function setAutoSaveEnabled(enabled: boolean): void {
+    autoSaveEnabled.value = enabled
+    tulisPref('js_autosave', enabled ? 'on' : 'off')
   }
 
   function setSelectedCell(cell: SelectedCell | null): void {
@@ -125,6 +148,10 @@ export const useUiStore = defineStore('ui', () => {
     isRightSidebarOpen,
     selectedHariFilter,
     gridDensity,
+    isMobileNavOpen,
+    autoSaveEnabled,
+    setMobileNavOpen,
+    setAutoSaveEnabled,
     setTheme,
     initTheme,
     toggleTheme,

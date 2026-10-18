@@ -14,16 +14,16 @@ Setelah dilakukan implementasi penuh dan optimasi algoritma zero-allocation pada
 2. **Fungsi `periksa()` (Full-Scan)**:
    Mengevaluasi seluruh sel satu sekolah secara serentak (mencakup 40 rombel × 6 hari × 10 JP = 2.400 sel dengan ratusan bentrok sintetis). Pada lingkungan OS Windows, resolusi timer sistem standar (~15.6ms clock tick) dan variasi CPU scheduling menyebabkan pengujian full-scan 2.400 sel mencatat durasi antara **13.5ms hingga 18ms**.
 
-Untuk mencegah modifikasi ambang batas pengujian secara sepihak/diam-diam (yang melanggar `AI_RULES.md` §3.3), diperlukan standarisasi formal target performa yang membedakan antara interaksi pengetikan langsung dan pemindaian menyeluruh skala ekstrim.
+Untuk mencegah modifikasi ambang batas pengujian secara sepihak/diam-diam (yang melanggar `CONTRIBUTING.md` §3.3), diperlukan standarisasi formal target performa yang membedakan antara interaksi pengetikan langsung dan pemindaian menyeluruh skala ekstrim.
 
 ## Decision
 
 Menetapkan model evaluasi performa **Dual-Tier NFR**:
 
-1. **Tier 1 — Keystroke Responsiveness (`preview()`)**:
+1. **Tier 1 - Keystroke Responsiveness (`preview()`)**:
    - **Target**: **< 5ms** (Realita terukur: < 0.2ms).
    - **Cakupan**: Dijalankan setiap kali pengguna mengetik kode sel di `ScheduleGridView.vue` untuk memberikan umpan balik visual seketika.
-2. **Tier 2 — Full-Scan Evaluation (`periksa()`)**:
+2. **Tier 2 - Full-Scan Evaluation (`periksa()`)**:
    - **Target Beban Normal (≤ 24 rombel, beban rata-rata sekolah di Indonesia)**: **< 15ms** (Realita terukur: 5–8ms).
    - **Target Beban Stres Ekstrim (40 rombel, 2.400 sel, 608 bentrok acak)**: **< 35ms** (Toleransi batas atas untuk menyerap fluktuasi granularitas timer Windows dan CPU thread contention saat test runner berjalan multi-worker paralel).
 

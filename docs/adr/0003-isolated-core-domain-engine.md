@@ -17,7 +17,7 @@ Memisahkan seluruh logika penjadwalan ke dalam direktori `src/core/` sebagai Typ
 ### Alternative 1: Logika bentrok ditulis langsung di dalam Pinia store / komponen Vue
 - **Pros**: Lebih sedikit lapisan abstraksi di awal, iterasi fitur UI terasa lebih cepat.
 - **Cons**: Logika anti-bentrok tercampur dengan reactivity Vue, sulit diuji tanpa merender komponen, rentan regresi saat UI dirombak.
-- **Why not**: Mesin deteksi bentrok adalah aset terpenting aplikasi (lihat `AI_RULES.md`) dan harus dapat diverifikasi benar secara matematis secara independen dari UI.
+- **Why not**: Mesin deteksi bentrok adalah aset terpenting aplikasi (lihat `CONTRIBUTING.md`) dan harus dapat diverifikasi benar secara matematis secara independen dari UI.
 
 ## Consequences
 
@@ -27,7 +27,7 @@ Memisahkan seluruh logika penjadwalan ke dalam direktori `src/core/` sebagai Typ
 - Arsitektur bersih dan mudah dimodifikasi di masa depan (UI dapat dirombak tanpa menyentuh core).
 
 ### Negative
-- Menambah disiplin lapisan (boundary) yang harus dijaga tim — setiap perubahan fitur perlu dipikirkan letaknya (core vs UI) sejak awal.
+- Menambah disiplin lapisan (boundary) yang harus dijaga tim - setiap perubahan fitur perlu dipikirkan letaknya (core vs UI) sejak awal.
 
 ### Risks
 - Risiko pelanggaran batas lapisan (misalnya import Vue/Electron tersusup ke `src/core/`) perlu dicegah dengan lint rule atau review checklist, karena tidak otomatis dicegah oleh TypeScript semata.

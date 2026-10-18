@@ -1,15 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onActivated, onDeactivated, onUnmounted, nextTick } from 'vue'
 import {
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
-  Copy,
-  Scissors,
   RotateCcw,
   RotateCw,
-  Search,
-  PanelLeftOpen,
   PanelRightOpen,
   PanelRightClose,
   Maximize2,
@@ -17,11 +10,15 @@ import {
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SelectedCell } from '../../stores/uiStore'
+import { useNotifyStore } from '../../stores/notifyStore'
 import { parseCellJP, cellTextJP, ambilTokenAktif } from '@core/cell-parser'
 import { SlotJam, Penugasan } from '@core/types'
 
+defineOptions({ name: 'ScheduleGridView' })
+
 const store = useScheduleStore()
 const uiStore = useUiStore()
+const notify = useNotifyStore()
 
 // State lokal editing sel
 const editingCell = ref<SelectedCell | null>(null)
@@ -48,18 +45,6 @@ const showSuggestions = ref(false)
 const suggestionList = ref<SaranKode[]>([])
 const activeSuggestionIndex = ref(-1)
 const suggestionPos = ref<{ top: number; left: number } | null>(null)
-
-// Toast bentrok
-const toastMessage = ref<string | null>(null)
-let toastTimer: any = null
-
-function showToast(msg: string): void {
-  toastMessage.value = msg
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => {
-    toastMessage.value = null
-  }, 3500)
-}
 
 // Daftar kelas terurut
 const kelasList = computed(() => store.proyek.master.kelas)
@@ -267,7 +252,7 @@ function updateSuggestionPosition(): void {
   suggestionPos.value = { top, left }
 }
 
-// Dipanggil setiap keystroke di input sel (lihat ADR-0008) — hanya filter
+// Dipanggil setiap keystroke di input sel (lihat ADR-0008), hanya filter
 // atas computed yang sudah ter-cache, menjaga Tier 1 NFR < 5ms (ADR-0007).
 function onCellInput(): void {
   const el = getInputEl()
@@ -312,6 +297,20 @@ function applySuggestion(item: SaranKode | undefined): void {
 function getCellRaw(hari: string, slotId: string, kelasId: string): string {
   const cell = store.getCell(hari, slotId, kelasId)
   return cellTextJP(cell)
+}
+
+function cellStyle(hari: string, slotId: string, kelasId: string): Record<string, string> | undefined {
+  const cell = store.getCell(hari, slotId, kelasId)
+  const first = cell[0]?.[0] ?? cell[1]?.[0]
+  if (!first) return undefined
+  const warna = penugasanByCode.value[first.toUpperCase()]?.warna
+  if (!warna || !/^#[0-9a-f]{6}$/i.test(warna) || warna.toLowerCase() === '#ffffff') return undefined
+  return { '--tint': warna }
+}
+
+function tintFor(hari: string, slotId: string, kelasId: string): Record<string, string> | undefined {
+  if (hasClash(hari, slotId, kelasId) || isHighlighted(hari, slotId, kelasId)) return undefined
+  return cellStyle(hari, slotId, kelasId)
 }
 
 function hasClash(hari: string, slotId: string, kelasId: string): boolean {
@@ -374,7 +373,7 @@ function commitEdit(): void {
     const key = `${hari}#${slotId}#${kelasId}`
     const cellIssues = issuesByCellKey.value[key]
     if (cellIssues && cellIssues.length > 0) {
-      showToast(`⚠️ Bentrok terdeteksi: ${cellIssues[0]}`)
+      notify.warn('Bentrok terdeteksi', cellIssues[0])
     }
   }
 
@@ -401,6 +400,10 @@ function handleKeyDown(event: KeyboardEvent): void {
     return
   }
   if (uiStore.isWizardOpen) return
+  // Dialog (konfirmasi, pratinjau ekspor, dan sebagainya) berada di atas kisi; jangan bajak tombolnya
+  if (target?.closest('[role="dialog"], [role="alertdialog"]') || document.querySelector('[role="dialog"], [role="alertdialog"]')) {
+    return
+  }
 
   // Jika sedang edit teks di input sel, biarkan Enter / Tab / Escape dihandle di input
   if (editingCell.value) return
@@ -420,13 +423,11 @@ function handleKeyDown(event: KeyboardEvent): void {
     }
   }
 
-  const cur = uiStore.selectedCell
-  if (!cur) return
-
-  // Pintasan Undo/Redo/Copy/Paste
+  // Undo/redo tidak membutuhkan sel terpilih
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
     event.preventDefault()
-    store.undo()
+    if (event.shiftKey) store.redo()
+    else store.undo()
     return
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
@@ -434,6 +435,10 @@ function handleKeyDown(event: KeyboardEvent): void {
     store.redo()
     return
   }
+
+  const cur = uiStore.selectedCell
+  if (!cur) return
+
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
     event.preventDefault()
     clipboardText.value = getCellRaw(cur.hari, cur.slotId, cur.kelasId)
@@ -592,13 +597,34 @@ function onInputKeyDown(event: KeyboardEvent): void {
   }
 }
 
-onMounted(() => {
+// Browser mereset posisi gulir elemen yang dilepas dari DOM, jadi posisinya dicatat sendiri
+const scrollEl = ref<HTMLElement | null>(null)
+const lastScroll = { top: 0, left: 0 }
+
+function onGridScroll(event: Event): void {
+  closeSuggestions()
+  const el = event.currentTarget as HTMLElement
+  if (el.offsetParent !== null) {
+    lastScroll.top = el.scrollTop
+    lastScroll.left = el.scrollLeft
+  }
+}
+
+// Dipasang saat halaman jadwal aktif saja; komponen ini di-keep-alive agar posisi gulir terjaga.
+onActivated(() => {
   window.addEventListener('keydown', handleKeyDown)
+  nextTick(() => {
+    scrollEl.value?.scrollTo(lastScroll.left, lastScroll.top)
+  })
+})
+
+onDeactivated(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+  cancelEdit()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
-  if (toastTimer) clearTimeout(toastTimer)
 })
 </script>
 
@@ -608,16 +634,6 @@ onUnmounted(() => {
     <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/90 px-3 py-2 text-xs shrink-0">
       <!-- Kolom Kiri: Toggle Sidebar, Judul, & Filter Hari -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Tombol Buka Sidebar jika Collapsed -->
-        <button
-          v-if="uiStore.isLeftSidebarCollapsed"
-          @click="uiStore.toggleLeftSidebar"
-          class="flex items-center justify-center rounded-lg p-1 text-slate-500 hover:text-emerald-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:text-emerald-400 dark:hover:bg-slate-800 transition-colors mr-0.5"
-          title="Buka Sidebar Navigasi (Ctrl+B)"
-        >
-          <PanelLeftOpen class="h-4 w-4" />
-        </button>
-
         <span class="font-bold text-slate-700 dark:text-slate-200 text-xs hidden sm:inline">Kisi Jadwal</span>
         <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
 
@@ -736,8 +752,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Area Tabel Jadwal dengan Virtual Scroll & Sticky Headers -->
-    <div @scroll="closeSuggestions" class="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
+    <!-- Tabel jadwal dengan header dan kolom kiri yang menempel -->
+    <div ref="scrollEl" @scroll="onGridScroll" class="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
       <table class="border-separate border-spacing-0 text-center text-xs table-fixed">
         <!-- Kolom Lebar Tetap untuk Menjamin Sticky Alignment Sempurna -->
         <colgroup>
@@ -803,7 +819,7 @@ onUnmounted(() => {
                   :colspan="kelasList.length"
                   class="border-b border-r border-slate-200 dark:border-slate-800/80 bg-amber-50 dark:bg-amber-500/5 px-3 py-1.5 text-center text-[11px] font-medium text-amber-700 dark:text-amber-300/80 tracking-wide"
                 >
-                  — {{ slot.label || (slot.tipe === 'jeda' ? 'Istirahat' : 'Upacara') }} —
+                  {{ slot.label || (slot.tipe === 'jeda' ? 'Istirahat' : 'Upacara') }}
                 </td>
               </tr>
 
@@ -839,8 +855,9 @@ onUnmounted(() => {
                   @click="selectCell(hari.nama, slot.id, kelas.id)"
                   @dblclick="startEditing(hari.nama, slot.id, kelas.id)"
                   :class="[
-                    'relative border-b border-r border-slate-200 dark:border-slate-800/70 p-0 text-center font-mono cursor-pointer transition-all bg-white dark:bg-slate-900/60',
+                    'relative border-b border-r border-slate-200 dark:border-slate-800/70 p-0 text-center font-mono cursor-pointer transition-colors bg-white dark:bg-slate-900/60',
                     isLargeView ? 'h-16 min-h-[64px]' : 'h-10 text-xs font-semibold',
+                    tintFor(hari.nama, slot.id, kelas.id) ? 'cell-tint' : '',
                     // Sel Aktif Terpilih
                     uiStore.selectedCell?.hari === hari.nama &&
                     uiStore.selectedCell?.slotId === slot.id &&
@@ -856,6 +873,7 @@ onUnmounted(() => {
                       ? 'bg-amber-100 text-amber-900 dark:bg-amber-400/25 dark:text-amber-200 ring-2 ring-amber-500 dark:ring-amber-400 ring-inset'
                       : ''
                   ]"
+                  :style="tintFor(hari.nama, slot.id, kelas.id)"
                   :title="getClashTooltip(hari.nama, slot.id, kelas.id)"
                 >
                   <!-- Mode Edit Langsung dalam Sel -->
@@ -926,7 +944,7 @@ onUnmounted(() => {
                     <!-- Badge Peringatan Bentrok Kecil -->
                     <span
                       v-if="hasClash(hari.nama, slot.id, kelas.id)"
-                      class="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-rose-500 animate-ping"
+                      class="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-rose-500"
                     />
                   </div>
                 </td>
@@ -937,16 +955,7 @@ onUnmounted(() => {
       </table>
     </div>
 
-    <!-- Toast Peringatan Bentrok Non-Blocking (Muncul tanpa mencuri fokus input) -->
-    <div
-      v-if="toastMessage"
-      class="pointer-events-none fixed bottom-6 right-6 z-50 flex items-center space-x-2.5 rounded-xl border border-rose-500/40 bg-slate-950/95 px-4 py-3 text-xs text-rose-300 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom duration-200"
-    >
-      <AlertTriangle class="h-4 w-4 text-rose-400 shrink-0" />
-      <span>{{ toastMessage }}</span>
-    </div>
-
-    <!-- Dropdown Saran Kode Inline (ADR-0008) — di-teleport ke body agar tidak terpotong scroll container grid -->
+    <!-- Dropdown Saran Kode Inline (ADR-0008), di-teleport ke body agar tidak terpotong scroll container grid -->
     <Teleport to="body">
       <div
         v-if="showSuggestions && suggestionList.length > 0 && suggestionPos"

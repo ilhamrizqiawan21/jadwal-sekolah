@@ -1,20 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import {
-  UserPlus,
-  Trash2,
-  Edit2,
-  Check,
-  X,
-  Calendar,
-  AlertCircle,
-  Clock,
-  Sparkles
-} from 'lucide-vue-next'
+import { UserPlus, Trash2, Pencil, Check, X, CalendarClock } from 'lucide-vue-next'
 import { Guru } from '@core/types'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useNotifyStore } from '../../stores/notifyStore'
 
 const store = useScheduleStore()
+const notify = useNotifyStore()
 
 const selectedGuruId = ref<string | null>(null)
 const isEditing = ref<boolean>(false)
@@ -122,13 +114,25 @@ function saveGuru(): void {
   isEditing.value = false
 }
 
-function removeGuru(guruId: string): void {
-  if (confirm('Yakin ingin menghapus guru ini? Seluruh penugasan terkait akan terpengaruh.')) {
-    store.deleteGuru(guruId)
-    if (selectedGuruId.value === guruId) {
-      selectedGuruId.value = store.proyek.master.guru[0]?.id || null
-    }
+async function removeGuru(guru: Guru): Promise<void> {
+  const terkait = store.proyek.master.penugasan.filter(
+    (a) => a.guru_id === guru.id || a.guru_ids?.includes(guru.id)
+  ).length
+  const ok = await notify.confirm({
+    title: `Hapus ${guru.nama}?`,
+    message:
+      terkait > 0
+        ? `${terkait} penugasan yang dipegang guru ini ikut dihapus dari daftar beban. Anda masih bisa membatalkannya dengan Undo.`
+        : 'Guru ini belum memiliki penugasan.',
+    confirmLabel: 'Hapus guru',
+    danger: true
+  })
+  if (!ok) return
+  store.deleteGuru(guru.id)
+  if (selectedGuruId.value === guru.id) {
+    selectedGuruId.value = store.proyek.master.guru[0]?.id || null
   }
+  isEditing.value = false
 }
 
 // Toggle ketersediaan jam mengajar guru (Availability Matrix)
@@ -188,9 +192,9 @@ function clearDayUnavailable(hari: string): void {
 </script>
 
 <template>
-  <div class="flex h-full w-full gap-4 overflow-hidden p-4">
+  <div class="flex h-full w-full flex-col gap-4 overflow-hidden p-4 sm:p-6 md:flex-row">
     <!-- Kolom Kiri: Daftar Guru -->
-    <div class="flex w-80 flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg">
+    <div class="card flex max-h-56 w-full shrink-0 flex-col md:max-h-none md:w-80">
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3">
         <div>
           <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Daftar Guru</h2>
@@ -240,15 +244,17 @@ function clearDayUnavailable(hari: string): void {
             </div>
           </div>
 
-          <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="flex items-center space-x-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
             <button
               @click.stop="editGuru(guru)"
+              :aria-label="`Ubah ${guru.nama}`"
               class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200"
             >
-              <Edit2 class="h-3 w-3" />
+              <Pencil class="h-3 w-3" />
             </button>
             <button
-              @click.stop="removeGuru(guru.id)"
+              @click.stop="removeGuru(guru)"
+              :aria-label="`Hapus ${guru.nama}`"
               class="rounded p-1 text-slate-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400"
             >
               <Trash2 class="h-3 w-3" />
@@ -259,7 +265,7 @@ function clearDayUnavailable(hari: string): void {
     </div>
 
     <!-- Kolom Kanan: Form Edit / Matriks Ketersediaan Guru -->
-    <div class="flex flex-1 flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg overflow-hidden">
+    <div class="card flex flex-1 flex-col overflow-hidden">
       <!-- Header Matriks / Form -->
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-3.5">
         <div v-if="activeGuru">
@@ -292,7 +298,7 @@ function clearDayUnavailable(hari: string): void {
             @click="editGuru(activeGuru)"
             class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
-            <Edit2 class="h-3.5 w-3.5" />
+            <Pencil class="h-3.5 w-3.5" />
             <span>Edit Profil</span>
           </button>
         </div>
@@ -307,7 +313,7 @@ function clearDayUnavailable(hari: string): void {
               v-model="formGuru.nama"
               type="text"
               placeholder="Contoh: Drs. H. Ahmad Dahlan, M.Pd."
-              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              class="field"
             />
           </div>
 
@@ -317,7 +323,7 @@ function clearDayUnavailable(hari: string): void {
               v-model="formGuru.nip"
               type="text"
               placeholder="19xxxxxxxxxxxxxx (opsional)"
-              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              class="field"
             />
           </div>
 
@@ -328,7 +334,7 @@ function clearDayUnavailable(hari: string): void {
                 v-model="formGuru.kode_prefiks"
                 type="text"
                 placeholder="Contoh: 1, 2, BIO"
-                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                class="field"
               />
             </div>
 
@@ -348,7 +354,7 @@ function clearDayUnavailable(hari: string): void {
           <div class="flex items-center space-x-2 pt-2">
             <button
               @click="saveGuru"
-              class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md"
+              class="btn btn-primary"
             >
               <Check class="h-3.5 w-3.5" />
               <span>Simpan Data</span>
@@ -421,10 +427,10 @@ function clearDayUnavailable(hari: string): void {
                     ]"
                     :title="isSlotUnavailable(day.hari, slot.id) ? 'Status: Berhalangan' : 'Status: Tersedia'"
                   >
-                    <span v-if="isSlotUnavailable(day.hari, slot.id)">✕</span>
-                    <span v-else>✓</span>
+                    <X v-if="isSlotUnavailable(day.hari, slot.id)" class="h-3.5 w-3.5" />
+                    <Check v-else class="h-3.5 w-3.5" />
                   </button>
-                  <span v-else class="text-slate-400 dark:text-slate-600 text-[10px]">—</span>
+                  <span v-else class="text-[10px] text-slate-300 dark:text-slate-600" aria-label="Bukan jam KBM">-</span>
                 </td>
 
                 <td class="px-3 py-2 text-right">
@@ -452,7 +458,7 @@ function clearDayUnavailable(hari: string): void {
       <!-- State Kosong: Belum Pilih Guru -->
       <div v-else class="flex flex-1 items-center justify-center p-8 text-center text-xs text-slate-400 dark:text-slate-500">
         <div>
-          <Calendar class="mx-auto h-8 w-8 text-slate-400 dark:text-slate-600 mb-2" />
+          <CalendarClock class="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
           <p>Pilih salah satu guru di sebelah kiri untuk melihat dan menyunting matriks ketersediaan jam mengajarnya.</p>
         </div>
       </div>

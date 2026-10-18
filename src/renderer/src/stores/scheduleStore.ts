@@ -13,9 +13,10 @@ import {
 } from '../../../core/types'
 import { periksa, preview } from '../../../core/checker'
 import { getPresetStrukturWaktu } from '../../../core/default-presets'
-import { createDummyProject } from '../../../core/dummy-data'
+import { buatProyekContoh } from '../../../core/sample-data'
 
 const MAX_HISTORY = 50
+export const NAMA_SEKOLAH_BARU = 'Sekolah Baru'
 
 function createEmptyProject(jenjang: TingkatTingkat = 'SMP', polaHari: 5 | 6 = 5): ProyekData {
   return {
@@ -24,7 +25,7 @@ function createEmptyProject(jenjang: TingkatTingkat = 'SMP', polaHari: 5 | 6 = 5
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     meta: {
-      nama_sekolah: 'Sekolah Baru',
+      nama_sekolah: NAMA_SEKOLAH_BARU,
       jenjang,
       semester: 'GANJIL',
       tahun_pelajaran: '2026/2027',
@@ -46,9 +47,12 @@ function createEmptyProject(jenjang: TingkatTingkat = 'SMP', polaHari: 5 | 6 = 5
 }
 
 export const useScheduleStore = defineStore('schedule', () => {
-  const proyek = ref<ProyekData>(createDummyProject())
+  const proyek = ref<ProyekData>(createEmptyProject())
   const filePath = ref<string | null>(null)
   const dirty = ref<boolean>(false)
+  // Naik setiap kali isi proyek berubah; dipakai agar simpan otomatis tidak menandai
+  // 'tersimpan' padahal pengguna mengetik lagi saat penyimpanan berlangsung.
+  const revision = ref<number>(0)
   const hasilPemeriksaan = ref<HasilPemeriksaan>(periksa(proyek.value))
 
   const undoStack = ref<string[]>([])
@@ -69,7 +73,21 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
     redoStack.value = []
     dirty.value = true
+    revision.value++
   }
+
+  /** Menandai isi proyek pada revisi tertentu sudah tersimpan. */
+  function markSaved(savedRevision: number = revision.value, path?: string | null): void {
+    if (path !== undefined) filePath.value = path
+    if (savedRevision === revision.value) dirty.value = false
+  }
+
+  const isPristine = computed(
+    () =>
+      proyek.value.master.kelas.length === 0 &&
+      proyek.value.master.guru.length === 0 &&
+      proyek.value.meta.nama_sekolah === NAMA_SEKOLAH_BARU
+  )
 
   function undo(): boolean {
     if (!canUndo.value) return false
@@ -78,6 +96,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     proyek.value = JSON.parse(previousState)
     runCheck()
     dirty.value = true
+    revision.value++
     return true
   }
 
@@ -88,6 +107,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     proyek.value = JSON.parse(nextState)
     runCheck()
     dirty.value = true
+    revision.value++
     return true
   }
 
@@ -106,14 +126,21 @@ export const useScheduleStore = defineStore('schedule', () => {
     undoStack.value = []
     redoStack.value = []
     dirty.value = false
+    revision.value++
     runCheck()
   }
 
-  function loadDummyProject(): void {
+  /** Mengganti isi proyek dengan salinan cadangan; langkah ini bisa dibatalkan dengan Undo. */
+  function restoreFromSnapshot(data: ProyekData): void {
     recordHistory()
-    proyek.value = createDummyProject()
+    proyek.value = data
+    runCheck()
+  }
+
+  function loadSampleProject(): void {
+    recordHistory()
+    proyek.value = buatProyekContoh()
     filePath.value = null
-    dirty.value = false
     runCheck()
   }
 
@@ -132,6 +159,12 @@ export const useScheduleStore = defineStore('schedule', () => {
     kelasId: string,
     content: CellContent
   ): void {
+    const hasContent = content.some((jp) => jp.length > 0)
+    const existing = proyek.value.jadwal[hari]?.[slotId]?.[kelasId]
+    if (hasContent ? JSON.stringify(existing) === JSON.stringify(content) : !existing) {
+      return
+    }
+
     recordHistory()
 
     if (!proyek.value.jadwal[hari]) {
@@ -141,7 +174,6 @@ export const useScheduleStore = defineStore('schedule', () => {
       proyek.value.jadwal[hari][slotId] = {}
     }
 
-    const hasContent = content.some((jp) => jp.length > 0)
     if (hasContent) {
       proyek.value.jadwal[hari][slotId][kelasId] = content
     } else {
@@ -252,10 +284,20 @@ export const useScheduleStore = defineStore('schedule', () => {
   function deleteGuru(guruId: string): void {
     recordHistory()
     proyek.value.master.guru = proyek.value.master.guru.filter((g) => g.id !== guruId)
-    // Hapus wali kelas
+    // Lepas wali kelas dan penugasan yang hanya dipegang guru ini
     for (const k of proyek.value.master.kelas) {
       if (k.wali_guru_id === guruId) k.wali_guru_id = null
     }
+    proyek.value.master.penugasan = proyek.value.master.penugasan.filter((a) => {
+      if (a.guru_ids && a.guru_ids.length > 0) {
+        a.guru_ids = a.guru_ids.filter((id) => id !== guruId)
+        if (a.guru_ids.length === 0) return false
+        a.guru_id = a.guru_ids[0]
+        if (a.guru_ids.length === 1) a.guru_ids = undefined
+        return true
+      }
+      return a.guru_id !== guruId
+    })
     runCheck()
   }
 
@@ -287,6 +329,8 @@ export const useScheduleStore = defineStore('schedule', () => {
     proyek,
     filePath,
     dirty,
+    revision,
+    isPristine,
     hasilPemeriksaan,
     undoStack,
     redoStack,
@@ -297,7 +341,9 @@ export const useScheduleStore = defineStore('schedule', () => {
     redo,
     initProjectFromPreset,
     loadProjectData,
-    loadDummyProject,
+    restoreFromSnapshot,
+    loadSampleProject,
+    markSaved,
     resetToEmptyProject,
     setCell,
     clearCell,
