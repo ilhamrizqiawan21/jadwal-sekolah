@@ -61,3 +61,30 @@ export function cellTextJP(content: CellContent): string {
   const b = cellText(content[1] || content[0] || [])
   return a === b ? a : `${a}|${b}`
 }
+
+export interface TokenAktif {
+  token: string
+  start: number
+  end: number
+}
+
+const PEMISAH_TOKEN = /[/,+;|]/
+
+/**
+ * Mengambil token kode yang sedang diketik di sekitar posisi kursor,
+ * dibatasi oleh pemisah multi-kode (/ , + ;) maupun pemisah split-JP (|).
+ * Dipakai untuk autocomplete inline (ADR-0008) agar saran hanya mengganti
+ * token yang sedang diedit, bukan seluruh isi sel.
+ */
+export function ambilTokenAktif(text: string, posisiKursor: number): TokenAktif {
+  const t = text || ''
+  const pos = Math.max(0, Math.min(posisiKursor, t.length))
+
+  let start = pos
+  while (start > 0 && !PEMISAH_TOKEN.test(t[start - 1])) start--
+
+  let end = pos
+  while (end < t.length && !PEMISAH_TOKEN.test(t[end])) end++
+
+  return { token: t.slice(start, end), start, end }
+}

@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Printer,
   Sparkles,
+  Database,
   Sun,
   Moon,
   PanelLeftClose,
@@ -124,6 +125,17 @@ async function handlePrintPdf(): Promise<void> {
   } catch (err: any) {
     isExporting.value = false
     alert(`Gagal mencetak PDF: ${err.message}`)
+  }
+}
+
+function handleLoadDummyData(): void {
+  if (
+    confirm(
+      'Muat data contoh lengkap sekolah (14 kelas, 29 guru, penugasan, dan jadwal terisi)? Perubahan saat ini akan digantikan.'
+    )
+  ) {
+    store.loadDummyProject()
+    showNotification('✓ Data contoh lengkap berhasil dimuat')
   }
 }
 
@@ -286,6 +298,19 @@ onMounted(() => {
             >
               <Sparkles class="h-4 w-4 shrink-0 text-amber-500" />
               <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Setup Wizard</span>
+            </button>
+
+            <!-- Muat Data Contoh -->
+            <button
+              @click="handleLoadDummyData"
+              :class="[
+                'flex w-full items-center rounded-xl py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors',
+                uiStore.isLeftSidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-3'
+              ]"
+              title="Muat Data Contoh Lengkap Sekolah (14 Kelas, 29 Guru, Jadwal Terisi)"
+            >
+              <Database class="h-4 w-4 shrink-0 text-emerald-500" />
+              <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate">Data Contoh</span>
             </button>
           </div>
         </div>

@@ -13,6 +13,7 @@ import {
 } from '../../../core/types'
 import { periksa, preview } from '../../../core/checker'
 import { getPresetStrukturWaktu } from '../../../core/default-presets'
+import { createDummyProject } from '../../../core/dummy-data'
 
 const MAX_HISTORY = 50
 
@@ -45,7 +46,7 @@ function createEmptyProject(jenjang: TingkatTingkat = 'SMP', polaHari: 5 | 6 = 5
 }
 
 export const useScheduleStore = defineStore('schedule', () => {
-  const proyek = ref<ProyekData>(createEmptyProject())
+  const proyek = ref<ProyekData>(createDummyProject())
   const filePath = ref<string | null>(null)
   const dirty = ref<boolean>(false)
   const hasilPemeriksaan = ref<HasilPemeriksaan>(periksa(proyek.value))
@@ -104,6 +105,22 @@ export const useScheduleStore = defineStore('schedule', () => {
     filePath.value = path
     undoStack.value = []
     redoStack.value = []
+    dirty.value = false
+    runCheck()
+  }
+
+  function loadDummyProject(): void {
+    recordHistory()
+    proyek.value = createDummyProject()
+    filePath.value = null
+    dirty.value = false
+    runCheck()
+  }
+
+  function resetToEmptyProject(jenjang: TingkatTingkat = 'SMP', polaHari: 5 | 6 = 5): void {
+    recordHistory()
+    proyek.value = createEmptyProject(jenjang, polaHari)
+    filePath.value = null
     dirty.value = false
     runCheck()
   }
@@ -280,6 +297,8 @@ export const useScheduleStore = defineStore('schedule', () => {
     redo,
     initProjectFromPreset,
     loadProjectData,
+    loadDummyProject,
+    resetToEmptyProject,
     setCell,
     clearCell,
     getCell,

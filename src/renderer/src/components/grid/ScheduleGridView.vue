@@ -11,8 +11,8 @@ import {
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SelectedCell } from '../../stores/uiStore'
-import { parseCellJP, cellTextJP } from '@core/cell-parser'
-import { SlotJam } from '@core/types'
+import { parseCellJP, cellTextJP, ambilTokenAktif } from '@core/cell-parser'
+import { SlotJam, Penugasan } from '@core/types'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
@@ -20,8 +20,28 @@ const uiStore = useUiStore()
 // State lokal editing sel
 const editingCell = ref<SelectedCell | null>(null)
 const editingText = ref<string>('')
-const inputRef = ref<HTMLInputElement | null>(null)
+const inputRef = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
 const clipboardText = ref<string>('')
+
+function getInputEl(): HTMLInputElement | null {
+  if (!inputRef.value) return null
+  if (Array.isArray(inputRef.value)) {
+    return (inputRef.value[0] as HTMLInputElement) || null
+  }
+  return inputRef.value as HTMLInputElement
+}
+
+// State lokal autocomplete saran kode inline (ADR-0008)
+interface SaranKode {
+  kode: string
+  guruNama: string
+  mapel: string
+  sisaJp: number
+}
+const showSuggestions = ref(false)
+const suggestionList = ref<SaranKode[]>([])
+const activeSuggestionIndex = ref(-1)
+const suggestionPos = ref<{ top: number; left: number } | null>(null)
 
 // Toast bentrok
 const toastMessage = ref<string | null>(null)
@@ -82,6 +102,136 @@ const penugasanByCode = computed(() => {
   return map
 })
 
+// Peta nama guru untuk tampilan saran autocomplete
+const namaGuruMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const g of store.proyek.master.guru) map.set(g.id, g.nama)
+  return map
+})
+
+function getSisaJpKelas(p: Penugasan, kelasId?: string): number {
+  if (!kelasId) {
+    const totalBeban = Object.values(p.beban).reduce((sum, b) => sum + (b || 0), 0)
+    let terpasangTotal = 0
+    for (const k of store.proyek.master.kelas) {
+      terpasangTotal += store.terpasang[`${p.kode.toUpperCase()}:${k.id}`] || 0
+    }
+    return totalBeban - terpasangTotal
+  }
+  const target = p.beban[kelasId] || 0
+  const terpasang = store.terpasang[`${p.kode.toUpperCase()}:${kelasId}`] || 0
+  return target - terpasang
+}
+
+// Filter kandidat saran dari penugasan: prefix match kode, atau substring match nama guru/mapel
+function computeSuggestions(token: string): SaranKode[] {
+  const q = token.trim().toUpperCase()
+  if (!q) return []
+
+  const activeKelasId = editingCell.value?.kelasId
+  const matched: Array<{ p: Penugasan; guruNama: string; prefixMatch: boolean }> = []
+
+  for (const p of store.proyek.master.penugasan) {
+    const kodeUpper = p.kode.toUpperCase()
+    const gids = p.guru_ids && p.guru_ids.length > 0 ? p.guru_ids : (p.guru_id ? [p.guru_id] : [])
+    const guruNama = gids.map((id) => namaGuruMap.value.get(id) || '?').join(' & ')
+
+    const prefixMatch = kodeUpper.startsWith(q)
+    const guruMatch = guruNama.toUpperCase().includes(q)
+    const mapelMatch = p.mapel.toUpperCase().includes(q)
+
+    if (prefixMatch || guruMatch || mapelMatch) {
+      matched.push({ p, guruNama, prefixMatch })
+    }
+  }
+
+  matched.sort((a, b) => {
+    if (a.prefixMatch !== b.prefixMatch) return a.prefixMatch ? -1 : 1
+    return a.p.kode.localeCompare(b.p.kode)
+  })
+
+  // Hitung sisa JP hanya untuk 8 kandidat terpilih (optimasi beban & spesifik kelas aktif)
+  return matched.slice(0, 8).map((m) => ({
+    kode: m.p.kode,
+    guruNama: m.guruNama,
+    mapel: m.p.mapel,
+    sisaJp: getSisaJpKelas(m.p, activeKelasId)
+  }))
+}
+
+function closeSuggestions(): void {
+  showSuggestions.value = false
+  suggestionList.value = []
+  activeSuggestionIndex.value = -1
+  suggestionPos.value = null
+}
+
+function updateSuggestionPosition(): void {
+  const el = getInputEl()
+  if (!el) {
+    suggestionPos.value = null
+    return
+  }
+  const rect = el.getBoundingClientRect()
+  const DROPDOWN_HEIGHT = 240
+  const DROPDOWN_WIDTH = 256
+  let top = rect.bottom + 2
+  let left = rect.left
+
+  // Jika meluap ke bawah viewport, render di atas input sel
+  if (top + DROPDOWN_HEIGHT > window.innerHeight && rect.top > DROPDOWN_HEIGHT) {
+    top = Math.max(8, rect.top - DROPDOWN_HEIGHT - 2)
+  }
+  // Jika meluap ke kanan viewport, geser ke kiri
+  if (left + DROPDOWN_WIDTH > window.innerWidth) {
+    left = Math.max(8, window.innerWidth - DROPDOWN_WIDTH - 8)
+  }
+
+  suggestionPos.value = { top, left }
+}
+
+// Dipanggil setiap keystroke di input sel (lihat ADR-0008) — hanya filter
+// atas computed yang sudah ter-cache, menjaga Tier 1 NFR < 5ms (ADR-0007).
+function onCellInput(): void {
+  const el = getInputEl()
+  const caret = el ? el.selectionStart ?? editingText.value.length : editingText.value.length
+  const { token } = ambilTokenAktif(editingText.value, caret)
+  const sugg = computeSuggestions(token)
+  const exactSingle = sugg.length === 1 && sugg[0].kode.toUpperCase() === token.trim().toUpperCase()
+
+  if (!token.trim() || sugg.length === 0 || exactSingle) {
+    closeSuggestions()
+    return
+  }
+
+  suggestionList.value = sugg
+  activeSuggestionIndex.value = -1
+  updateSuggestionPosition()
+  showSuggestions.value = true
+}
+
+// Menerapkan saran terpilih: ganti hanya token yang sedang diketik, sisa isi sel tetap
+function applySuggestion(item: SaranKode | undefined): void {
+  const el = getInputEl()
+  if (!item || !el) {
+    closeSuggestions()
+    return
+  }
+  const caret = el.selectionStart ?? editingText.value.length
+  const { start, end } = ambilTokenAktif(editingText.value, caret)
+  const before = editingText.value.slice(0, start)
+  const after = editingText.value.slice(end)
+  editingText.value = `${before}${item.kode}${after}`
+  closeSuggestions()
+
+  nextTick(() => {
+    const input = getInputEl()
+    const newCaret = before.length + item.kode.length
+    input?.setSelectionRange(newCaret, newCaret)
+    input?.focus()
+  })
+}
+
 function getCellRaw(hari: string, slotId: string, kelasId: string): string {
   const cell = store.getCell(hari, slotId, kelasId)
   return cellTextJP(cell)
@@ -124,10 +274,12 @@ function startEditing(hari: string, slotId: string, kelasId: string, initialChar
   editingCell.value = { hari, slotId, kelasId }
   const current = getCellRaw(hari, slotId, kelasId)
   editingText.value = initialChar !== undefined ? initialChar : current
+  closeSuggestions()
 
   nextTick(() => {
-    inputRef.value?.focus()
-    inputRef.value?.select()
+    const input = getInputEl()
+    input?.focus()
+    input?.select()
   })
 }
 
@@ -150,10 +302,12 @@ function commitEdit(): void {
   }
 
   editingCell.value = null
+  closeSuggestions()
 }
 
 function cancelEdit(): void {
   editingCell.value = null
+  closeSuggestions()
 }
 
 // Navigasi Keyboard
@@ -268,8 +422,43 @@ function moveSelection(direction: string): void {
   }
 }
 
-// Tangani event keyboard input saat edit sel
+// Tangani event keyboard input saat edit sel (termasuk navigasi dropdown saran, ADR-0008)
 function onInputKeyDown(event: KeyboardEvent): void {
+  if (showSuggestions.value && suggestionList.value.length > 0) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (activeSuggestionIndex.value === -1) {
+        activeSuggestionIndex.value = 0
+      } else {
+        activeSuggestionIndex.value = (activeSuggestionIndex.value + 1) % suggestionList.value.length
+      }
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (activeSuggestionIndex.value <= 0) {
+        activeSuggestionIndex.value = -1
+      } else {
+        activeSuggestionIndex.value--
+      }
+      return
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      if (activeSuggestionIndex.value >= 0 && activeSuggestionIndex.value < suggestionList.value.length) {
+        applySuggestion(suggestionList.value[activeSuggestionIndex.value])
+      }
+      commitEdit()
+      moveSelection(event.key === 'Enter' ? 'ArrowDown' : 'Tab')
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeSuggestions()
+      return
+    }
+  }
+
   if (event.key === 'Enter') {
     event.preventDefault()
     commitEdit()
@@ -329,7 +518,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Area Tabel Jadwal dengan Virtual Scroll & Sticky Headers -->
-    <div class="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
+    <div @scroll="closeSuggestions" class="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
       <table class="border-separate border-spacing-0 text-center text-xs">
         <!-- Header Kelas (Sticky Top) -->
         <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950">
@@ -442,9 +631,10 @@ onUnmounted(() => {
                     class="h-full w-full p-1"
                   >
                     <input
-                      ref="inputRef"
+                      :ref="(el) => { inputRef = (el as any) || null }"
                       v-model="editingText"
                       @keydown="onInputKeyDown"
+                      @input="onCellInput"
                       @blur="commitEdit"
                       type="text"
                       class="h-full w-full rounded border border-emerald-500 dark:border-emerald-400 bg-white dark:bg-slate-950 px-1 text-center font-mono text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
@@ -490,5 +680,30 @@ onUnmounted(() => {
       <AlertTriangle class="h-4 w-4 text-rose-400 shrink-0" />
       <span>{{ toastMessage }}</span>
     </div>
+
+    <!-- Dropdown Saran Kode Inline (ADR-0008) — di-teleport ke body agar tidak terpotong scroll container grid -->
+    <Teleport to="body">
+      <div
+        v-if="showSuggestions && suggestionList.length > 0 && suggestionPos"
+        :style="{ position: 'fixed', top: `${suggestionPos.top}px`, left: `${suggestionPos.left}px` }"
+        class="z-50 w-64 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
+      >
+        <div
+          v-for="(sugg, idx) in suggestionList"
+          :key="sugg.kode"
+          @mousedown.prevent="applySuggestion(sugg)"
+          :class="[
+            'flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] cursor-pointer',
+            idx === activeSuggestionIndex
+              ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-200'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          ]"
+        >
+          <span class="shrink-0 font-mono font-bold">{{ sugg.kode }}</span>
+          <span class="flex-1 truncate text-slate-500 dark:text-slate-400">{{ sugg.guruNama }} · {{ sugg.mapel }}</span>
+          <span class="shrink-0 font-mono text-slate-400 dark:text-slate-500">{{ sugg.sisaJp }} JP</span>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

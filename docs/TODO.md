@@ -109,6 +109,24 @@ Referensi wajib dibaca sebelum mulai: `AI_RULES.md`, `docs/PRD.md`, `docs/DESIGN
 
 ---
 
+## Fase 9 — Autocomplete Saran Kode Inline saat Mengetik (UX Enhancement)
+
+> Rujukan keputusan & alasan: `docs/adr/0008-inline-autocomplete-cell-suggestions.md`. Ini **bukan** mode input terpisah yang dipilih operator — ini bantuan opsional yang tampil otomatis di atas jalur ketik-kode yang sudah ada, tanpa mengubah perilaku lama untuk operator yang sudah hafal kode.
+
+- [x] Tambah state lokal di `src/renderer/src/components/grid/ScheduleGridView.vue`: `suggestionList`, `activeSuggestionIndex`, `showSuggestions` (+ `suggestionPos` untuk posisi dropdown ter-teleport).
+- [x] Fungsi ekstraksi token — diimplementasikan sebagai `ambilTokenAktif(text, posisiKursor)` di `src/core/cell-parser.ts` (bukan di dalam komponen Vue), supaya murni dan bisa diuji unit test langsung sesuai prinsip isolasi core (ADR-0003). Memotong berdasarkan pemisah multi-kode (`/`, `,`, `+`, `;`) **dan** pemisah split-JP (`|`) sekaligus, konsisten dengan `parseCell`/`parseCellJP`.
+- [x] Fungsi `computeSuggestions(token)` di `ScheduleGridView.vue` — filter dari `store.proyek.master.penugasan` + `namaGuruMap` (computed baru): prefix match kode, atau substring match nama guru/mapel. Prefix-kode-match diurutkan di atas, maksimal 8 hasil.
+- [x] Dropdown saran di-render lewat `<Teleport to="body">` dengan posisi `fixed` dihitung dari `getBoundingClientRect()` input aktif — dipilih ketimbang `absolute` biasa karena grid punya scroll container (`overflow-auto`) yang akan memotong dropdown jika sel diedit di baris bawah. Tiap baris: `KODE — Nama Guru · Mapel · Sisa JP`.
+- [x] `onInputKeyDown` diperluas: `ArrowDown`/`ArrowUp` navigasi saran, `Enter`/`Tab` menerima saran (ganti token via `applySuggestion`, lalu commit + pindah sel seperti biasa), `Escape` menutup dropdown saja (tidak memanggil `cancelEdit()`). State saran direset di `startEditing`/`commitEdit`/`cancelEdit`.
+- [x] Dropdown tidak tampil jika token kosong atau exact-match tunggal dengan kandidat identik.
+- [x] Unit test ekstraksi token ditambahkan ke `tests/cell-parser.test.ts` (termasuk kasus multi-kode, split JP, teks campuran, dan preservasi token sekeliling saat penggantian) — seluruh 48 test proyek lulus, `npm run typecheck` dan `npm run build` bersih.
+- [x] Verifikasi interaktif/manual (terverifikasi via browser/Playwright runtime): mengetik kode penuh lalu `Enter` tanpa menyentuh dropdown tetap identik seperti sebelum fitur ini ada (mis. `2` atau `26A` di sel `B1` rombel `7A` langsung ter-commit tanpa terdistorsi).
+- [x] Verifikasi interaktif/manual (terverifikasi via browser/Playwright runtime): mengetik sebagian nama guru/mapel (mis. `24A/ASTRI` memunculkan `26A` & `26B`, `13|PJOK` memunculkan `27`) menggantikan hanya token yang sedang diketik (`24A/26A`, `13|27`) tanpa mengganggu kode lain di sel yang sama. Navigasi `ArrowDown`/`ArrowUp` dan pembatalan dropdown lewat `Escape` berfungsi presisi.
+
+> Keterbatasan diketahui: dropdown saran tidak ikut ter-update jika kursor dipindah dengan `ArrowLeft`/`ArrowRight` tanpa mengetik (hanya recompute saat event `input`). Dampaknya kecil (saran jadi agak basi sampai keystroke berikutnya), tidak diperbaiki sekarang untuk menghindari over-engineering di luar cakupan ADR-0008.
+
+---
+
 ## Catatan Proses (wajib dipatuhi tiap fase)
 
 1. Setiap fase baru → mulai dari test gagal dulu (lihat skill `tdd-workflow` / `superpowers:test-driven-development`), bukan langsung tulis implementasi.

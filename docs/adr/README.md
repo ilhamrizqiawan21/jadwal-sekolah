@@ -11,3 +11,4 @@ Proyek: Jadwal Sekolah (Native Windows Desktop Application)
 | [0005](0005-dynamic-time-slot-model.md) | Model Struktur Waktu Fleksibel (Dynamic TimeSlots) | accepted | 2026-10-18 |
 | [0006](0006-snapshot-state-history-and-native-dom-grid.md) | Snapshot-Based State History dan Native DOM Grid (Pengganti GoF Command Pattern & Virtual Scrolling) | accepted | 2026-10-18 |
 | [0007](0007-nfr-performance-dual-tier-validation.md) | Standarisasi Validasi Performa Dual-Tier NFR untuk Mesin Pengecekan Jadwal | accepted | 2026-10-18 |
+| [0008](0008-inline-autocomplete-cell-suggestions.md) | Autocomplete Saran Kode Inline di Sel (Pengganti Mode Input Terpisah) | accepted | 2026-10-18 |
