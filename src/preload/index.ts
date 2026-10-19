@@ -9,6 +9,7 @@ export interface IElectronAPI {
   cleanTempFiles: (dirPath: string) => Promise<{ success: boolean }>
   printToPdf: (savePath: string, data?: ProyekData) => Promise<{ success: boolean; filePath: string }>
   exportExcel: (savePath: string, data: ProyekData) => Promise<{ success: boolean; filePath: string }>
+  updateWindowIcon: (base64DataUrl: string | null, title?: string) => Promise<{ success: boolean }>
   ping: () => string
 }
 
@@ -21,6 +22,8 @@ const api: IElectronAPI = {
   cleanTempFiles: (dirPath) => ipcRenderer.invoke('storage:cleanTemp', dirPath),
   printToPdf: (savePath, data) => ipcRenderer.invoke('app:printToPdf', savePath, data),
   exportExcel: (savePath, data) => ipcRenderer.invoke('app:exportExcel', savePath, data),
+  updateWindowIcon: (base64DataUrl, title) =>
+    ipcRenderer.invoke('app:updateWindowIcon', base64DataUrl, title),
   ping: () => 'pong'
 }
 

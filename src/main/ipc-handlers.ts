@@ -1,10 +1,11 @@
-import { ipcMain, dialog, BrowserWindow, app } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app, nativeImage } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { ProyekData } from '../core/types'
 import { saveProject, loadProject, cleanTempFiles } from './storage'
 import { exportExcelToFile } from './excel-exporter'
 import { generateSchedulePrintHtml } from './pdf-template'
+
 
 export function registerIpcHandlers(): void {
   // 1. Dialog Pilih Buka Berkas (.jadwal)

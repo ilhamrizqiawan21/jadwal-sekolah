@@ -606,20 +606,11 @@ onUnmounted(() => {
   <div class="relative flex h-full w-full flex-col overflow-hidden bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100 select-none">
     <!-- Toolbar Kisi Jadwal Responsif -->
     <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/90 px-3 py-2 text-xs shrink-0">
-      <!-- Kolom Kiri: Toggle Sidebar, Judul, & Filter Hari -->
+      <!-- Kolom Kiri: Judul & Filter Hari -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Tombol Buka Sidebar jika Collapsed -->
-        <button
-          v-if="uiStore.isLeftSidebarCollapsed"
-          @click="uiStore.toggleLeftSidebar"
-          class="flex items-center justify-center rounded-lg p-1 text-slate-500 hover:text-emerald-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:text-emerald-400 dark:hover:bg-slate-800 transition-colors mr-0.5"
-          title="Buka Sidebar Navigasi (Ctrl+B)"
-        >
-          <PanelLeftOpen class="h-4 w-4" />
-        </button>
-
         <span class="font-bold text-slate-700 dark:text-slate-200 text-xs hidden sm:inline">Kisi Jadwal</span>
         <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+
 
         <!-- Segmented Tab Pemilih Hari (Fokus Harian) -->
         <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">

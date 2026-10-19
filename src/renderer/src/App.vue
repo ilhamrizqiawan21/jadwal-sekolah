@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   Calendar,
   Users,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-vue-next'
 import { useScheduleStore } from './stores/scheduleStore'
 import { useUiStore, ActiveTab } from './stores/uiStore'
+import { getDefaultAppIcon, formatWindowTitle } from './utils/app-icon'
 
 // Komponen
 import SchoolSetupWizard from './components/wizard/SchoolSetupWizard.vue'
@@ -31,6 +32,49 @@ import BreadcrumbHeader from './components/common/BreadcrumbHeader.vue'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
+
+// Gunakan khusus logo_base64 (persegi 1:1) dan bukan kop surat lebar horizontal
+const schoolLogoUrl = computed(() => {
+  const raw = store.proyek.meta.logo_base64?.trim() || ''
+  if (!raw) return ''
+  return raw.startsWith('data:image/') ? raw : `data:image/jpeg;base64,${raw}`
+})
+
+const defaultAppIcon = computed(() => getDefaultAppIcon())
+const activeLogoUrl = computed(() => schoolLogoUrl.value || defaultAppIcon.value)
+
+// 1. Sinkronisasi Ikon Jendela & Favicon saat Logo Berubah (Payload Gambar)
+watch(
+  activeLogoUrl,
+  (newLogo) => {
+    const windowTitle = formatWindowTitle(store.proyek.meta.nama_sekolah)
+    if (typeof document !== 'undefined') {
+      const favicon = document.getElementById('app-dynamic-favicon') as HTMLLinkElement | null
+      if (favicon && newLogo) {
+        favicon.href = newLogo
+      }
+    }
+    if (window.api?.updateWindowIcon && newLogo) {
+      window.api.updateWindowIcon(newLogo, windowTitle).catch(() => {})
+    }
+  },
+  { immediate: true }
+)
+
+// 2. Sinkronisasi Judul Jendela saat Nama Sekolah Diedit (Tanpa Resend Payload Gambar)
+watch(
+  () => store.proyek.meta.nama_sekolah,
+  (newName) => {
+    const windowTitle = formatWindowTitle(newName)
+    if (typeof document !== 'undefined') {
+      document.title = windowTitle
+    }
+    if (window.api?.updateWindowIcon) {
+      window.api.updateWindowIcon(null, windowTitle).catch(() => {})
+    }
+  }
+)
+
 
 const isExporting = ref<boolean>(false)
 const exportStatusMessage = ref<string | null>(null)
@@ -200,25 +244,22 @@ onUnmounted(() => {
         uiStore.isLeftSidebarCollapsed ? 'w-16' : 'w-64'
       ]"
     >
-      <!-- Floating Edge Toggle Button (Mudah diklik di garis pembatas sidebar) -->
-      <button
-        @click="uiStore.toggleLeftSidebar"
-        class="absolute -right-3 top-4 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900 shadow-md text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:scale-110 transition-all focus:outline-none"
-        :title="uiStore.isLeftSidebarCollapsed ? 'Buka Sidebar (Ctrl+B)' : 'Ciutkan Sidebar (Ctrl+B)'"
-      >
-        <ChevronRight v-if="uiStore.isLeftSidebarCollapsed" class="h-3.5 w-3.5" />
-        <ChevronLeft v-else class="h-3.5 w-3.5" />
-      </button>
-
-      <!-- Header Sidebar: Expanded Mode (Logo + Info Sekolah + Tombol Ciutkan) -->
+      <!-- Header Sidebar: Expanded Mode (Logo Sekolah + Info + Tombol Toggle Tunggal di Bawahnya) -->
       <div
         v-if="!uiStore.isLeftSidebarCollapsed"
-        class="flex h-14 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5 shrink-0"
+        class="border-b border-slate-200 dark:border-slate-800 p-3 space-y-2.5 shrink-0 transition-all"
       >
-        <div class="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 font-black text-sm text-white shadow-sm shadow-emerald-900/20">
-            JS
+        <div class="flex items-center space-x-2.5 min-w-0">
+          <!-- Logo Sekolah Responsif (Membesar saat Terbuka) -->
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+            <img
+              :src="activeLogoUrl"
+              :alt="schoolLogoUrl ? 'Logo Sekolah' : 'Logo Jadwal Sekolah'"
+              class="h-full w-full object-contain p-1"
+            />
           </div>
+
+          <!-- Info Nama & Periode Sekolah -->
           <div class="min-w-0 flex-1 truncate">
             <div class="flex items-center space-x-1.5">
               <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
@@ -230,35 +271,51 @@ onUnmounted(() => {
                 title="Ada perubahan belum disimpan"
               />
             </div>
-            <p class="truncate text-[10px] text-slate-500 dark:text-slate-400">
-              {{ store.proyek.meta.tahun_pelajaran || '2025/2026' }} • Sem. {{ store.proyek.meta.semester || 'GANJIL' }}
+            <p class="truncate text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+              {{ store.proyek.meta.tahun_pelajaran || '2026/2027' }} • Sem. {{ store.proyek.meta.semester || 'GANJIL' }}
             </p>
           </div>
         </div>
 
-        <!-- Tombol Ciutkan Sidebar -->
+        <!-- Tombol Toggle Minimalis Tunggal di Bawah Logo (Expanded Mode) -->
+        <div class="flex items-center justify-center pt-0.5">
+          <button
+            @click="uiStore.toggleLeftSidebar"
+            class="group flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900/80 dark:hover:bg-emerald-500/15 text-slate-400 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-800 transition-all shadow-2xs hover:scale-105"
+            title="Ciutkan Sidebar (Ctrl+B)"
+          >
+            <PanelLeftClose class="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Header Sidebar: Collapsed Mode (Logo Sekolah Responsif + Tombol Toggle Minimalis di Bawahnya) -->
+      <div
+        v-else
+        class="border-b border-slate-200 dark:border-slate-800 p-2.5 flex flex-col items-center space-y-2 shrink-0 transition-all"
+      >
+        <!-- Logo Sekolah Responsif (Mengecil saat Tertutup) -->
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs transition-all duration-200"
+          :title="store.proyek.meta.nama_sekolah || 'Jadwal Sekolah'"
+        >
+          <img
+            :src="activeLogoUrl"
+            :alt="schoolLogoUrl ? 'Logo Sekolah' : 'Logo Jadwal Sekolah'"
+            class="h-full w-full object-contain p-0.5"
+          />
+        </div>
+
+        <!-- Tombol Toggle Minimalis Tunggal di Bawah Logo (Collapsed Mode) -->
         <button
           @click="uiStore.toggleLeftSidebar"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/80 transition-colors"
-          title="Ciutkan Sidebar (Ctrl+B)"
+          class="group flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900/80 dark:hover:bg-emerald-500/15 text-slate-400 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-800 transition-all shadow-2xs hover:scale-105"
+          title="Buka Sidebar (Ctrl+B)"
         >
-          <PanelLeftClose class="h-4 w-4" />
+          <PanelLeftOpen class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
 
-      <!-- Header Sidebar: Collapsed Mode (Tombol Buka Terpusat Rapi & Proporsional) -->
-      <div
-        v-else
-        class="flex h-14 items-center justify-center border-b border-slate-200 dark:border-slate-800 px-2 shrink-0"
-      >
-        <button
-          @click="uiStore.toggleLeftSidebar"
-          class="group flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900 dark:hover:bg-emerald-500/15 border border-slate-200/80 dark:border-slate-800 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-all shadow-xs"
-          title="Buka Sidebar (Ctrl+B)"
-        >
-          <PanelLeftOpen class="h-5 w-5 transition-transform group-hover:scale-110" />
-        </button>
-      </div>
 
       <!-- Scrollable Sidebar Body (Navigasi & Aksi) -->
       <div class="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-4">
