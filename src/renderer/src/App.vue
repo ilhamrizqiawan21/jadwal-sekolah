@@ -27,6 +27,7 @@ import KelasTab from './components/master/KelasTab.vue'
 import BebanTab from './components/master/BebanTab.vue'
 import PengaturanTab from './components/master/PengaturanTab.vue'
 import ExportPreviewModal from './components/export/ExportPreviewModal.vue'
+import BreadcrumbHeader from './components/common/BreadcrumbHeader.vue'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
@@ -364,43 +365,44 @@ onUnmounted(() => {
 
     <!-- Area Konten Utama (Right Workspace) -->
     <div class="flex flex-1 flex-col overflow-hidden">
-      <!-- Notifikasi Status Aksi (Jika ada toast ekspor/simpan) -->
-      <div
-        v-if="exportStatusMessage"
-        class="bg-emerald-600 px-4 py-1 text-center text-xs font-semibold text-white animate-in slide-in-from-top duration-150 shrink-0"
-      >
-        {{ exportStatusMessage }}
-      </div>
+      <!-- Breadcrumb Navigasi & Notifikasi Terpadu -->
+      <BreadcrumbHeader
+        :notification-message="exportStatusMessage"
+        @save="handleSaveFile"
+        @clear-notification="exportStatusMessage = null"
+      />
 
-      <!-- Workspace Konten Tab -->
-      <main class="flex flex-1 overflow-hidden">
-        <!-- Tab 1: Kisi Jadwal & Panel Masalah -->
-        <div v-if="uiStore.activeTab === 'jadwal'" class="flex h-full w-full overflow-hidden">
-          <div class="flex-1 overflow-hidden">
-            <ScheduleGridView />
+      <!-- Workspace Konten Tab dengan Motion Transisi Halus -->
+      <main class="flex flex-1 overflow-hidden relative">
+        <Transition name="tab-motion" mode="out-in">
+          <!-- Tab 1: Kisi Jadwal & Panel Masalah -->
+          <div v-if="uiStore.activeTab === 'jadwal'" key="jadwal" class="flex h-full w-full overflow-hidden">
+            <div class="flex-1 overflow-hidden">
+              <ScheduleGridView />
+            </div>
+            <IssueSidebar v-if="uiStore.isRightSidebarOpen" />
           </div>
-          <IssueSidebar v-if="uiStore.isRightSidebarOpen" />
-        </div>
 
-        <!-- Tab 2: Beban Mengajar -->
-        <div v-else-if="uiStore.activeTab === 'beban'" class="h-full w-full overflow-hidden">
-          <BebanTab />
-        </div>
+          <!-- Tab 2: Beban Mengajar -->
+          <div v-else-if="uiStore.activeTab === 'beban'" key="beban" class="h-full w-full overflow-hidden">
+            <BebanTab />
+          </div>
 
-        <!-- Tab 3: Guru & Jam Berhalangan -->
-        <div v-else-if="uiStore.activeTab === 'guru'" class="h-full w-full overflow-hidden">
-          <GuruTab />
-        </div>
+          <!-- Tab 3: Guru & Jam Berhalangan -->
+          <div v-else-if="uiStore.activeTab === 'guru'" key="guru" class="h-full w-full overflow-hidden">
+            <GuruTab />
+          </div>
 
-        <!-- Tab 4: Kelas & Rombel -->
-        <div v-else-if="uiStore.activeTab === 'kelas'" class="h-full w-full overflow-hidden">
-          <KelasTab />
-        </div>
+          <!-- Tab 4: Kelas & Rombel -->
+          <div v-else-if="uiStore.activeTab === 'kelas'" key="kelas" class="h-full w-full overflow-hidden">
+            <KelasTab />
+          </div>
 
-        <!-- Tab 5: Pengaturan -->
-        <div v-else-if="uiStore.activeTab === 'pengaturan'" class="h-full w-full overflow-hidden">
-          <PengaturanTab @open-wizard="uiStore.setWizardOpen(true)" />
-        </div>
+          <!-- Tab 5: Pengaturan -->
+          <div v-else-if="uiStore.activeTab === 'pengaturan'" key="pengaturan" class="h-full w-full overflow-hidden">
+            <PengaturanTab @open-wizard="uiStore.setWizardOpen(true)" />
+          </div>
+        </Transition>
       </main>
     </div>
 
@@ -419,3 +421,22 @@ onUnmounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+/* Motion Transisi Halus Antar Menu Tab */
+.tab-motion-enter-active,
+.tab-motion-leave-active {
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tab-motion-enter-from {
+  opacity: 0;
+  transform: translateY(6px) scale(0.997);
+}
+
+.tab-motion-leave-to {
+  opacity: 0;
+  transform: translateY(-5px) scale(0.997);
+}
+</style>
+
