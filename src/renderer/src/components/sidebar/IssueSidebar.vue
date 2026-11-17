@@ -17,6 +17,8 @@ import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SidebarTab } from '../../stores/uiStore'
 import { Masalah, Penugasan } from '@core/types'
 import { parseCellJP } from '@core/cell-parser'
+import { canApplyCodeToCell } from '@core/ui-validation'
+import { getSlotOperatorLabel } from '@core/session-config'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
@@ -66,6 +68,15 @@ function getTerpasangCount(p: Penugasan): number {
   return count
 }
 
+function getSlotOperatorName(hari: string, slotId: string): string {
+  const hariData = store.proyek.struktur_waktu.hari[hari]
+  const slotIndex = hariData?.slots.findIndex((slot) => slot.id === slotId) ?? -1
+  const slot = slotIndex >= 0 ? hariData?.slots[slotIndex] : undefined
+  if (!slot) return slotId
+  const ordinal = hariData?.slots.slice(0, slotIndex + 1).filter((item) => item.tipe === 'kbm').length || 0
+  return getSlotOperatorLabel(slot, ordinal)
+}
+
 // Lompat ke sel terkait masalah
 function jumpToIssue(issue: Masalah): void {
   if (!issue.sel || issue.sel.length === 0) return
@@ -111,7 +122,7 @@ function toggleHighlightGuru(guruId: string): void {
 // Pasang kode ke sel yang sedang aktif di kisi jadwal
 function applyCodeToSelectedCell(kode: string): void {
   const cur = uiStore.selectedCell
-  if (!cur) return
+  if (!cur || !canApplyCodeToCell(cur)) return
 
   const knownCodes = new Set(store.proyek.master.penugasan.map((p) => p.kode.toUpperCase()))
   const parsed = parseCellJP(kode, knownCodes)
@@ -120,10 +131,11 @@ function applyCodeToSelectedCell(kode: string): void {
 </script>
 
 <template>
-  <div class="flex h-full w-80 flex-col border-l border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
+  <div class="flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 xl:w-80">
     <!-- Tab Navigasi Sidebar -->
     <div class="flex border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950 px-2 pt-2">
       <button
+        type="button"
         @click="uiStore.setSidebarTab('issues')"
         :class="[
           'relative flex flex-1 items-center justify-center space-x-1.5 py-2.5 text-xs font-semibold transition-colors',
@@ -131,6 +143,9 @@ function applyCodeToSelectedCell(kode: string): void {
             ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500'
             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
         ]"
+        role="tab"
+        :aria-controls="'issue-panel-content'"
+        :aria-selected="uiStore.sidebarTab === 'issues'"
       >
         <span>Pemeriksaan</span>
         <span
@@ -148,6 +163,7 @@ function applyCodeToSelectedCell(kode: string): void {
       </button>
 
       <button
+        type="button"
         @click="uiStore.setSidebarTab('codes')"
         :class="[
           'flex flex-1 items-center justify-center space-x-1.5 py-2.5 text-xs font-semibold transition-colors',
@@ -155,6 +171,9 @@ function applyCodeToSelectedCell(kode: string): void {
             ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500'
             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
         ]"
+        role="tab"
+        :aria-controls="'code-panel-content'"
+        :aria-selected="uiStore.sidebarTab === 'codes'"
       >
         <span>Daftar Kode</span>
         <span class="rounded bg-slate-200 dark:bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono text-slate-700 dark:text-slate-400">
@@ -164,9 +183,11 @@ function applyCodeToSelectedCell(kode: string): void {
 
       <!-- Tombol Tutup Panel (Fokus ke Jadwal Penuh) -->
       <button
+        type="button"
         @click="uiStore.toggleRightSidebar"
         class="flex items-center justify-center rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors ml-1 self-center"
         title="Tutup Panel Masalah & Kode (Ctrl+I)"
+        aria-label="Tutup panel masalah dan kode"
       >
         <PanelRightClose class="h-4 w-4" />
       </button>
@@ -175,10 +196,15 @@ function applyCodeToSelectedCell(kode: string): void {
     <!-- TAB 1: Masalah Jadwal (Realtime) -->
     <div
       v-if="uiStore.sidebarTab === 'issues'"
+      id="issue-panel-content"
+      role="tabpanel"
       class="flex-1 overflow-y-auto p-3 space-y-4"
     >
       <!-- Ringkasan Status Jadwal -->
       <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
         :class="[
           'flex items-center space-x-3 rounded-xl border p-3.5',
           errorIssues.length === 0
@@ -231,7 +257,7 @@ function applyCodeToSelectedCell(kode: string): void {
                 :key="sIdx"
                 class="rounded bg-white dark:bg-slate-950 px-1 py-0.2 border border-slate-200 dark:border-transparent"
               >
-                {{ s[0] }} {{ s[1] }} ({{ s[2].replace('kelas:', '') }})
+                {{ s[0] }} {{ getSlotOperatorName(s[0], s[1]) }} ({{ s[2].replace('kelas:', '') }})
               </span>
             </div>
           </div>
@@ -242,7 +268,7 @@ function applyCodeToSelectedCell(kode: string): void {
       <div v-if="warningIssues.length > 0" class="space-y-2">
         <div class="flex items-center space-x-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
           <AlertTriangle class="h-3.5 w-3.5" />
-          <span>Belum Tuntas Diplot ({{ warningIssues.length }})</span>
+          <span>Alokasi Belum Lengkap ({{ warningIssues.length }})</span>
         </div>
 
         <div class="space-y-1.5 max-h-72 overflow-y-auto">
@@ -258,11 +284,13 @@ function applyCodeToSelectedCell(kode: string): void {
     </div>
 
     <!-- TAB 2: Daftar Kode & Guru (Pencarian Cepat) -->
-    <div v-else class="flex flex-1 flex-col overflow-hidden p-3">
+    <div v-else id="code-panel-content" role="tabpanel" class="flex flex-1 flex-col overflow-hidden p-3">
       <!-- Search Input -->
       <div class="relative mb-3">
         <Search class="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+        <label for="issue-code-search" class="sr-only">Cari kode atau guru</label>
         <input
+          id="issue-code-search"
           v-model="searchQuery"
           type="text"
           placeholder="Cari mapel, kode, guru..."
@@ -322,11 +350,12 @@ function applyCodeToSelectedCell(kode: string): void {
 
             <button
               @click="applyCodeToSelectedCell(p.kode)"
-              class="flex items-center space-x-1 rounded bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-500 transition-colors shadow-sm"
-              title="Isi kode ini ke sel yang sedang aktif di kisi jadwal"
+              :disabled="!canApplyCodeToCell(uiStore.selectedCell)"
+              class="flex items-center space-x-1 rounded bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-500 transition-colors shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-500"
+              :title="canApplyCodeToCell(uiStore.selectedCell) ? 'Isi kode ini ke sel yang sedang aktif di kisi jadwal' : 'Pilih sel jadwal terlebih dahulu'"
             >
               <PlusCircle class="h-3 w-3" />
-              <span>Isi ke Sel</span>
+              <span>{{ canApplyCodeToCell(uiStore.selectedCell) ? 'Isi ke Sel' : 'Pilih Sel Dulu' }}</span>
             </button>
           </div>
         </div>

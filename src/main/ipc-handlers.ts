@@ -1,19 +1,55 @@
 import { ipcMain, dialog, BrowserWindow, app, nativeImage } from 'electron'
 import fs from 'fs'
 import path from 'path'
+import { pathToFileURL } from 'url'
+import { createFileGrants } from './security'
+import { assertProjectData } from './storage'
 import { ProyekData } from '../core/types'
 import { saveProject, loadProject, cleanTempFiles } from './storage'
 import { exportExcelToFile } from './excel-exporter'
 import { generateSchedulePrintHtml } from './pdf-template'
+import { APP_NAME, DEFAULT_FILE_NAME } from '../core/app-meta'
+import { ensureFilePath, ensureWithinRoots } from './path-guards'
 
 
 export function registerIpcHandlers(): void {
+  const grants = createFileGrants()
+  const handle: typeof ipcMain.handle = (channel, listener) => {
+    ipcMain.handle(channel, (event, ...args) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const expectedUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL
+        ? process.env.ELECTRON_RENDERER_URL
+        : pathToFileURL(path.join(__dirname, '../renderer/index.html')).href
+      const actualUrl = event.senderFrame?.url.split('#')[0]
+      if (!window || event.senderFrame !== event.sender.mainFrame || actualUrl !== expectedUrl.split('#')[0]) {
+        throw new Error('Pengirim IPC tidak diizinkan.')
+      }
+      return listener(event, ...args)
+    })
+  }
+  // 0. Sinkronisasi judul dan ikon jendela dari profil sekolah
+  handle(
+    'app:updateWindowIcon',
+    async (event, base64DataUrl: string | null, title?: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) throw new Error('Jendela aktif tidak ditemukan')
+
+      if (title) window.setTitle(title)
+      if (base64DataUrl) {
+        const icon = nativeImage.createFromDataURL(base64DataUrl)
+        if (!icon.isEmpty()) window.setIcon(icon)
+      }
+
+      return { success: true }
+    }
+  )
+
   // 1. Dialog Pilih Buka Berkas (.jadwal)
-  ipcMain.handle('dialog:openFile', async (event) => {
+  handle('dialog:openFile', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     const options = {
       title: 'Buka Berkas Jadwal',
-      filters: [{ name: 'Berkas Jadwal Sekolah', extensions: ['jadwal'] }],
+      filters: [{ name: 'Berkas Jadwal Pendidikan', extensions: ['jadwal'] }],
       properties: ['openFile'] as ('openFile')[]
     }
     const result = window
@@ -24,18 +60,19 @@ export function registerIpcHandlers(): void {
       return null
     }
 
-    const filePath = result.filePaths[0]
+    const filePath = ensureFilePath(result.filePaths[0], '.jadwal')
+    grants.allow(event.sender.id, filePath)
     const data = await loadProject(filePath)
     return { filePath, data }
   })
 
   // 2. Dialog Simpan Berkas (.jadwal)
-  ipcMain.handle(
+  handle(
     'dialog:saveFile',
     async (event, defaultName?: string, dataToSave?: ProyekData) => {
       const window = BrowserWindow.fromWebContents(event.sender)
-      let filters = [{ name: 'Berkas Jadwal Sekolah (*.jadwal)', extensions: ['jadwal'] }]
-      let title = 'Simpan Jadwal Sekolah'
+      let filters = [{ name: 'Berkas Jadwal Pendidikan (*.jadwal)', extensions: ['jadwal'] }]
+      let title = `Simpan ${APP_NAME}`
       if (defaultName && defaultName.toLowerCase().endsWith('.xlsx')) {
         filters = [{ name: 'Buku Kerja Excel (*.xlsx)', extensions: ['xlsx'] }]
         title = 'Simpan Ekspor Excel'
@@ -46,7 +83,7 @@ export function registerIpcHandlers(): void {
 
       const options = {
         title,
-        defaultPath: defaultName || 'jadwal-sekolah.jadwal',
+        defaultPath: defaultName || DEFAULT_FILE_NAME,
         filters
       }
       const result = window
@@ -57,40 +94,48 @@ export function registerIpcHandlers(): void {
         return null
       }
 
+      const extension = `.${filters[0].extensions[0]}`
+      const safeFilePath = ensureFilePath(result.filePath, extension, true)
+      grants.allow(event.sender.id, safeFilePath)
       if (dataToSave) {
-        await saveProject(result.filePath, dataToSave)
+        if (extension !== '.jadwal') throw new Error('Data proyek harus disimpan sebagai .jadwal.')
+        await saveProject(safeFilePath, dataToSave)
       }
 
-      return result.filePath
+      return safeFilePath
     }
   )
 
   // 3. Simpan Proyek Langsung ke Jalur yang Ditentukan
-  ipcMain.handle(
+  handle(
     'storage:save',
-    async (_event, filePath: string, data: ProyekData) => {
-      await saveProject(filePath, data)
+    async (event, filePath: string, data: ProyekData) => {
+      await saveProject(grants.require(event.sender.id, filePath, '.jadwal'), data)
       return { success: true }
     }
   )
 
   // 4. Muat Proyek dari Jalur
-  ipcMain.handle('storage:load', async (_event, filePath: string) => {
-    const data = await loadProject(filePath)
+  handle('storage:load', async (event, filePath: string) => {
+    const data = await loadProject(grants.require(event.sender.id, filePath, '.jadwal'))
     return data
   })
 
   // 5. Bersihkan berkas sementara
-  ipcMain.handle('storage:cleanTemp', async (_event, dirPath: string) => {
-    await cleanTempFiles(dirPath)
+  handle('storage:cleanTemp', async (_event, dirPath: string) => {
+    const allowedRoots = [path.join(app.getPath('documents'), APP_NAME), app.getPath('userData')]
+    const safeDirPath = ensureWithinRoots(dirPath, allowedRoots)
+    await cleanTempFiles(safeDirPath)
     return { success: true }
   })
 
   // 6. Cetak ke PDF via dokumen cetak resmi
-  ipcMain.handle(
+  handle(
     'app:printToPdf',
     async (event, savePath: string, data?: ProyekData) => {
+      grants.require(event.sender.id, savePath, '.pdf')
       if (data) {
+        assertProjectData(data)
         const htmlContent = generateSchedulePrintHtml(data)
         const tempHtmlPath = path.join(app.getPath('temp'), `jadwal-print-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.html`)
         await fs.promises.writeFile(tempHtmlPath, htmlContent, 'utf-8')
@@ -119,8 +164,9 @@ export function registerIpcHandlers(): void {
             }
           })
 
-          await fs.promises.writeFile(savePath, pdfBuffer)
-          return { success: true, filePath: savePath }
+          const safeSavePath = ensureFilePath(savePath, '.pdf')
+          await fs.promises.writeFile(safeSavePath, pdfBuffer)
+          return { success: true, filePath: safeSavePath }
         } finally {
           printWindow.destroy()
           await fs.promises.unlink(tempHtmlPath).catch(() => {})
@@ -142,16 +188,18 @@ export function registerIpcHandlers(): void {
         }
       })
 
-      await fs.promises.writeFile(savePath, pdfBuffer)
-      return { success: true, filePath: savePath }
+      const safeSavePath = ensureFilePath(savePath, '.pdf')
+      await fs.promises.writeFile(safeSavePath, pdfBuffer)
+      return { success: true, filePath: safeSavePath }
     }
   )
 
   // 7. Ekspor Excel (.xlsx) dengan exceljs
-  ipcMain.handle(
+  handle(
     'app:exportExcel',
-    async (_event, savePath: string, data: ProyekData) => {
-      return await exportExcelToFile(savePath, data)
+    async (event, savePath: string, data: ProyekData) => {
+      assertProjectData(data)
+      return await exportExcelToFile(grants.require(event.sender.id, savePath, '.xlsx'), data)
     }
   )
 }

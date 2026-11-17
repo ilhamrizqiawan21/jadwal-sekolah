@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { ProyekData } from '../core/types'
-import { cellTextJP } from '../core/cell-parser'
+import { formatExportCell, getExportGuruCodes } from '../core/export-labels'
+import { APP_NAME } from '../core/app-meta'
 
 /**
  * Membantu membersihkan string base64 dari prefix data URI.
@@ -46,12 +47,36 @@ const nonKbmFill: ExcelJS.Fill = {
   fgColor: { argb: 'FFF1F5F9' } // Slate 100
 }
 
+// Size only table cells: merged letterheads must not widen individual columns.
+function fitTableColumns(sheet: ExcelJS.Worksheet, firstRow: number, lastRow: number): void {
+  for (let col = 1; col <= sheet.columnCount; col++) {
+    let width = sheet.getColumn(col).width || 10
+    for (let row = firstRow; row <= lastRow; row++) {
+      const cell = sheet.getCell(row, col)
+      if (!cell.isMerged) width = Math.max(width, cell.text.length + 3)
+    }
+    sheet.getColumn(col).width = Math.min(width, 48)
+  }
+  for (let row = firstRow; row <= lastRow; row++) {
+    const current = sheet.getRow(row)
+    let lines = 1
+    current.eachCell(cell => {
+      cell.alignment = { ...cell.alignment, wrapText: true }
+      if (!cell.isMerged) {
+        const usableWidth = Math.max(1, (sheet.getColumn(cell.col).width || 10) - 3)
+        lines = Math.max(lines, Math.ceil(cell.text.length / usableWidth))
+      }
+    })
+    current.height = Math.max(current.height || 20, lines * 15 + 6)
+  }
+}
+
 /**
  * Membangun objek Workbook ExcelJS dari data proyek jadwal sekolah dengan kop surat lengkap.
  */
 export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Jadwal Sekolah Desktop'
+  workbook.creator = `${APP_NAME} Desktop`
   workbook.created = new Date()
 
   const logoDataUrl = data.meta.logo_base64 || data.meta.kop_base64
@@ -132,7 +157,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   rowIdxBeban++
 
   // Merge judul kop ke seluruh kolom tabel
-  const totalKolomBeban = 5 + kelasHeaders.length
+  const totalKolomBeban = 6 + kelasHeaders.length
   for (let r = 1; r < rowIdxBeban; r++) {
     try {
       wsBeban.mergeCells(r, 1, r, totalKolomBeban)
@@ -157,7 +182,8 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   const headerRowBeban = [
     'No',
     'Nama Guru & Gelar',
-    'Kode',
+    'Kode Guru',
+    'Kode Mapel',
     'Mata Pelajaran',
     ...kelasHeaders,
     'Total JP'
@@ -178,16 +204,17 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
       p.guru_ids && p.guru_ids.length > 0
         ? p.guru_ids.map((id) => guruMap.get(id) || '?').join(' & ')
         : guruMap.get(p.guru_id) || '?'
+    const guruKode = getExportGuruCodes(data, p) || '-'
 
     const kelasJP = data.master.kelas.map((k) => p.beban[k.id] || '')
     const totalJP = Object.values(p.beban).reduce((sum, v) => sum + (v || 0), 0)
 
-    const r = wsBeban.addRow([index + 1, guruNama, p.kode, p.mapel, ...kelasJP, totalJP || ''])
+    const r = wsBeban.addRow([index + 1, guruNama, guruKode, p.kode, p.mapel, ...kelasJP, totalJP || ''])
     r.height = 20
     r.font = { name: 'Arial', size: 9.5 }
     r.eachCell((cell, colNumber) => {
       cell.border = borderThin
-      if (colNumber === 2 || colNumber === 4) {
+      if (colNumber === 2 || colNumber === 5) {
         cell.alignment = { vertical: 'middle', horizontal: 'left' }
       } else {
         cell.alignment = { vertical: 'middle', horizontal: 'center' }
@@ -196,7 +223,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   })
 
   // Baris Total JP Keseluruhan di Footer Tabel
-  const totalRowValues: any[] = ['TOTAL', '', '', '']
+  const totalRowValues: any[] = ['TOTAL', '', '', '', '']
   data.master.kelas.forEach((k) => {
     const sumKelas = data.master.penugasan.reduce((acc, p) => acc + (p.beban[k.id] || 0), 0)
     totalRowValues.push(sumKelas || '')
@@ -214,7 +241,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
     cell.alignment = { vertical: 'middle', horizontal: 'center' }
   })
   try {
-    wsBeban.mergeCells(rTotalBeban.number, 1, rTotalBeban.number, 4)
+    wsBeban.mergeCells(rTotalBeban.number, 1, rTotalBeban.number, 5)
   } catch {
     // Abaikan
   }
@@ -233,7 +260,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   } catch {}
 
   const rTtd2 = wsBeban.addRow([])
-  rTtd2.getCell(ttdStartCol).value = `${data.meta.pejabat_ttd?.jabatan || 'Kepala Sekolah'},`
+  rTtd2.getCell(ttdStartCol).value = `${data.meta.pejabat_ttd?.jabatan || 'Pimpinan Lembaga'},`
   rTtd2.font = { name: 'Arial', size: 10 }
   rTtd2.getCell(ttdStartCol).alignment = { horizontal: 'center' }
   try {
@@ -264,12 +291,14 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   // Lebar Kolom Sheet Beban
   wsBeban.getColumn(1).width = 6 // No
   wsBeban.getColumn(2).width = 28 // Nama Guru
-  wsBeban.getColumn(3).width = 8 // Kode
-  wsBeban.getColumn(4).width = 24 // Mapel
-  for (let c = 5; c <= 4 + kelasHeaders.length; c++) {
+  wsBeban.getColumn(3).width = 11 // Kode Guru
+  wsBeban.getColumn(4).width = 11 // Kode Mapel
+  wsBeban.getColumn(5).width = 24 // Mapel
+  for (let c = 6; c <= 5 + kelasHeaders.length; c++) {
     wsBeban.getColumn(c).width = 9 // Kolom Kelas
   }
   wsBeban.getColumn(totalKolomBeban).width = 11 // Total JP
+  fitTableColumns(wsBeban, wsHeaderBeban.number, rTotalBeban.number)
 
   // =========================================================================
   // SHEET 2: MATRIKS JADWAL PELAJARAN
@@ -390,7 +419,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
         for (const k of data.master.kelas) {
           const cell = data.jadwal[hari]?.[slot.id]?.[k.id]
           if (cell) {
-            const txt = cellTextJP(cell)
+            const txt = formatExportCell(data, cell)
             rowData.push(txt)
           } else {
             rowData.push('')
@@ -408,6 +437,8 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
     }
   }
 
+  const lastScheduleRow = wsJadwal.rowCount
+
   // Blok Tanda Tangan Pejabat (Matriks Jadwal)
   wsJadwal.addRow([])
   wsJadwal.addRow([])
@@ -422,7 +453,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   } catch {}
 
   const rTtdJ2 = wsJadwal.addRow([])
-  rTtdJ2.getCell(ttdJadwalCol).value = `${data.meta.pejabat_ttd?.jabatan || 'Kepala Sekolah'},`
+  rTtdJ2.getCell(ttdJadwalCol).value = `${data.meta.pejabat_ttd?.jabatan || 'Pimpinan Lembaga'},`
   rTtdJ2.font = { name: 'Arial', size: 10 }
   rTtdJ2.getCell(ttdJadwalCol).alignment = { horizontal: 'center' }
   try {
@@ -457,6 +488,7 @@ export async function buildExcelWorkbook(data: ProyekData): Promise<ExcelJS.Work
   for (let c = 4; c <= totalKolomJadwal; c++) {
     wsJadwal.getColumn(c).width = 11 // Rombel Kelas
   }
+  fitTableColumns(wsJadwal, wsHeaderJadwal.number, lastScheduleRow)
 
   return workbook
 }

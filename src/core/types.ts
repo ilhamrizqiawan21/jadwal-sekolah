@@ -1,9 +1,21 @@
 /**
- * Model data & types untuk Jadwal Sekolah (v2)
+ * Model data & types untuk Jadwal Pendidikan (v2)
  * Pure TypeScript — 0 UI dependency
  */
 
-export type TingkatTingkat = 'SD' | 'SMP' | 'SMA' | 'SMK' | 'LAINNYA'
+export type TingkatTingkat =
+  | 'PAUD'
+  | 'TK'
+  | 'SD'
+  | 'MI'
+  | 'SMP'
+  | 'MTs'
+  | 'SMA'
+  | 'MA'
+  | 'SMK'
+  | 'PKBM'
+  | 'PESANTREN'
+  | 'LAINNYA'
 export type SemesterTipe = 'GANJIL' | 'GENAP'
 export type SlotTipe = 'kbm' | 'jeda' | 'upacara' | 'ibadah' | 'tutup'
 export type MasalahTingkat = 'error' | 'warn' | 'info'
@@ -28,6 +40,8 @@ export interface Metadata {
   tahun_pelajaran: string
   kota_tanggal: string
   pejabat_ttd: PejabatTtd
+  jenis_lembaga?: string
+  jenjang_custom?: string
   kop_base64?: string
   logo_base64?: string
   alamat_sekolah?: string
@@ -53,6 +67,8 @@ export interface HariKBM {
 export interface StrukturWaktu {
   pola_hari: 5 | 6
   durasi_jp_menit: number
+  /** Jumlah Jam Pelajaran dalam satu sesi/blok KBM. Berkas lama diasumsikan 2 JP. */
+  jp_per_sesi?: 1 | 2
   hari: Record<string, HariKBM>
 }
 

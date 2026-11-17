@@ -44,6 +44,8 @@ describe('Pinia Stores (scheduleStore & uiStore)', () => {
     const store = useScheduleStore()
     expect(store.proyek).toBeDefined()
     expect(store.proyek.format_version).toBe(2)
+    expect(store.proyek.meta.nama_sekolah).toBe('Lembaga Pendidikan Baru')
+    expect(store.proyek.master.kelas).toHaveLength(0)
     expect(store.canUndo).toBe(false)
     expect(store.canRedo).toBe(false)
     expect(store.dirty).toBe(false)
@@ -144,5 +146,73 @@ describe('Pinia Stores (scheduleStore & uiStore)', () => {
     // Undo mengembalikan urutan semula
     store.undo()
     expect(store.proyek.master.kelas.map((k) => k.nama)).toEqual(['7A', '7B', '7C'])
+  })
+
+  it('membersihkan referensi penugasan dan sel jadwal saat guru dihapus', () => {
+    const store = useScheduleStore()
+    store.initProjectFromPreset('SMP', 5)
+    store.addKelas({ id: 'c1', nama: '7A', urutan: 1 })
+    store.addGuru({ id: 'g1', nama: 'Guru IPA', tidak_bisa: {} })
+    store.addPenugasan({
+      id: 'a1',
+      guru_id: 'g1',
+      kode: 'IPA-1',
+      mapel: 'IPA',
+      beban: { c1: 2 }
+    })
+    store.setCell('Senin', 'B1', 'c1', [['IPA-1'], ['IPA-1']])
+
+    store.deleteGuru('g1')
+
+    expect(store.proyek.master.penugasan).toHaveLength(0)
+    expect(store.proyek.jadwal.Senin.B1.c1).toBeUndefined()
+  })
+
+  it('mengatur jumlah JP dalam satu sesi KBM dan menyesuaikan sel jadwal', () => {
+    const store = useScheduleStore()
+    store.initProjectFromPreset('SMP', 5)
+    store.addKelas({ id: 'c1', nama: 'VII A', urutan: 1 })
+    store.addGuru({ id: 'g1', nama: 'Guru Matematika', tidak_bisa: {} })
+    store.addPenugasan({
+      id: 'a1',
+      guru_id: 'g1',
+      kode: 'MAT-1',
+      mapel: 'Matematika',
+      beban: { c1: 2 }
+    })
+    store.setCell('Senin', 'B1', 'c1', [['MAT-1'], ['MAT-1']])
+
+    const result = store.updateJumlahJpPerSesi(1)
+    expect(result.droppedJp).toBe(1)
+    expect(store.proyek.struktur_waktu.jp_per_sesi).toBe(1)
+    expect(store.proyek.struktur_waktu.hari.Senin.slots.find((slot) => slot.id === 'B1')?.jp).toEqual([1])
+    expect(store.getCell('Senin', 'B1', 'c1')).toEqual([['MAT-1'], []])
+
+    store.updateJumlahJpPerSesi(2)
+    expect(store.proyek.struktur_waktu.jp_per_sesi).toBe(2)
+    expect(store.proyek.struktur_waktu.hari.Senin.slots.find((slot) => slot.id === 'B1')?.jp).toEqual([1, 2])
+  })
+
+  it('membersihkan isi jadwal saat sesi dihapus atau diubah menjadi non-KBM', () => {
+    const store = useScheduleStore()
+    store.initProjectFromPreset('SMP', 5)
+    store.addKelas({ id: 'c1', nama: 'VII A', urutan: 1 })
+    store.addGuru({ id: 'g1', nama: 'Guru Matematika', tidak_bisa: {} })
+    store.addPenugasan({
+      id: 'a1',
+      guru_id: 'g1',
+      kode: 'MAT-1',
+      mapel: 'Matematika',
+      beban: { c1: 2 }
+    })
+    store.setCell('Senin', 'B1', 'c1', [['MAT-1'], ['MAT-1']])
+
+    const struktur = JSON.parse(JSON.stringify(store.proyek.struktur_waktu))
+    struktur.hari.Senin.slots = struktur.hari.Senin.slots.map((slot: { id: string; tipe: string }) =>
+      slot.id === 'B1' ? { ...slot, tipe: 'jeda', jp: [], label: 'ISTIRAHAT' } : slot
+    )
+    store.updateStrukturWaktu(struktur)
+
+    expect(store.getCell('Senin', 'B1', 'c1')).toEqual([[], []])
   })
 })

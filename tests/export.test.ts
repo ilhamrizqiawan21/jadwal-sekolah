@@ -23,6 +23,7 @@ function generateExtremeProject(polaHari: 5 | 6, jumlahKelas: number): ProyekDat
       id: `guru:${g}`,
       nama: `Guru Pengampu ${g}, M.Pd.`,
       nip: `19800101201001100${g}`,
+      kode_prefiks: `G${String(g).padStart(2, '0')}`,
       tidak_bisa: {}
     })
   }
@@ -133,6 +134,35 @@ describe('Ekspor Excel Kasus Ekstrem & Kop Surat (Fase 7 Enhancement)', () => {
     expect(buffer.byteLength).toBeGreaterThan(5000)
   })
 
+  it('menampilkan kode guru terpisah dari kode mapel pada hasil ekspor', async () => {
+    const data = generateExtremeProject(5, 3)
+    const workbook = await buildExcelWorkbook(data)
+    const wsBeban = workbook.getWorksheet('Beban Mengajar')!
+    const rows = wsBeban.getRows(1, wsBeban.rowCount) || []
+    const header = rows.find((row) => String(row.getCell(1).value || '') === 'No')
+
+    expect(header).toBeDefined()
+    if (!header) throw new Error('Header Beban Mengajar tidak ditemukan')
+
+    const headerValues = Array.from({ length: header.cellCount }, (_, index) => String(header.getCell(index + 1).value || ''))
+    expect(headerValues).toContain('Kode Guru')
+    expect(headerValues).toContain('Kode Mapel')
+
+    const hasGuruCode = rows.some((row) => {
+      let found = false
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        if (String(cell.value || '') === 'G01') found = true
+      })
+      return found
+    })
+    expect(hasGuruCode).toBe(true)
+
+    const html = generateSchedulePrintHtml(data)
+    expect(html).toContain('Kode Guru')
+    expect(html).toContain('Kode Mapel')
+    expect(html).toContain('G01')
+  })
+
   it('berhasil men-generate dokumen Excel untuk kasus ekstrem besar: 36 kelas / 6 hari tanpa error', async () => {
     const data = generateExtremeProject(6, 36)
     const workbook = await buildExcelWorkbook(data)
@@ -178,7 +208,7 @@ describe('Ekspor Excel Kasus Ekstrem & Kop Surat (Fase 7 Enhancement)', () => {
       }
     })
 
-    expect(foundCellText).toBe('1|2')
+    expect(foundCellText).toBe('1 (G02)|2 (G03)')
   })
 
   it('menghasilkan markup HTML siap cetak PDF dengan kop resmi, jadwal, beban, dan tanda tangan', () => {
@@ -213,20 +243,20 @@ describe('Ekspor Excel Kasus Ekstrem & Kop Surat (Fase 7 Enhancement)', () => {
     expect(html).toContain('NIP.198001012010011001')
   })
 
-  it('merender sel split-JP dengan dua sub-kolom vertikal [ 1 │ 31 ] pada cetak PDF', () => {
+  it('merender sel split-JP dengan kode mapel dan kode guru pada cetak PDF', () => {
     const data = generateExtremeProject(5, 3)
     const firstHari = Object.keys(data.struktur_waktu.hari)[0]
     const kbmSlot = data.struktur_waktu.hari[firstHari].slots.find((s) => s.tipe === 'kbm')!
     const firstKelas = data.master.kelas[0].id
 
-    // Isi split JP: jam 1 kode 1, jam 2 kode 31
-    data.jadwal[firstHari][kbmSlot.id][firstKelas] = [['1'], ['31']]
+    // Isi split JP: jam 1 kode 1, jam 2 kode 2
+    data.jadwal[firstHari][kbmSlot.id][firstKelas] = [['1'], ['2']]
 
     const html = generateSchedulePrintHtml(data)
     expect(html).toContain('cell-kbm-split')
     expect(html).toContain('split-wrapper')
-    expect(html).toContain('<span class="split-col split-left">1</span>')
-    expect(html).toContain('<span class="split-col split-right">31</span>')
+    expect(html).toContain('<span class="split-col split-left">1 (G02)</span>')
+    expect(html).toContain('<span class="split-col split-right">2 (G03)</span>')
   })
 
   it('merender sel split-JP dengan benar saat salah satu JP kosong (contoh 1| atau |2)', () => {
@@ -241,7 +271,7 @@ describe('Ekspor Excel Kasus Ekstrem & Kop Surat (Fase 7 Enhancement)', () => {
     const html = generateSchedulePrintHtml(data)
     // Harus tetap berupa split-wrapper dengan sisi kanan kosong, BUKAN fallback ke jam penuh
     expect(html).toContain('cell-kbm-split')
-    expect(html).toContain('<span class="split-col split-left">1</span>')
+    expect(html).toContain('<span class="split-col split-left">1 (G02)</span>')
     expect(html).toContain('<span class="split-col split-right"></span>')
   })
 })

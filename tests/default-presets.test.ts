@@ -28,4 +28,51 @@ describe('default-presets', () => {
     expect(kbmSlots.length).toBeGreaterThanOrEqual(4)
     expect(jedaSlots.length).toBeGreaterThanOrEqual(1)
   })
+
+  it('tidak membuat slot Jumat bertumpuk pada preset SMA/SMK', () => {
+    const sw = getPresetStrukturWaktu('SMA', 5)
+    const slots = sw.hari['Jumat'].slots
+    const ranges = slots.map((slot) => {
+      const first = slot.waktu[0].split('-')[0]
+      const last = slot.waktu[slot.waktu.length - 1].split('-')[1]
+      return [first, last]
+    })
+
+    for (let i = 1; i < ranges.length; i++) {
+      expect(ranges[i][0] >= ranges[i - 1][1]).toBe(true)
+    }
+  })
+
+  it('mendukung konfigurasi waktu kustom untuk jenjang atau lembaga lain', () => {
+    const sw = getPresetStrukturWaktu('LAINNYA', 6, {
+      durasiJP: 50,
+      blokPerHari: 3,
+      jamMulaiMenit: 8 * 60,
+      jedaSetelahBlok: [1],
+      tambahkanTutupJumat: false
+    })
+
+    expect(sw.durasi_jp_menit).toBe(50)
+    expect(sw.hari['Selasa'].slots[0].waktu[0]).toBe('08.00-08.50')
+    expect(sw.hari['Selasa'].slots.filter((slot) => slot.tipe === 'kbm')).toHaveLength(3)
+    expect(sw.hari['Jumat'].slots.some((slot) => slot.id === 'TUTUP')).toBe(false)
+  })
+
+  it('menyimpan konfigurasi satu sesi KBM sebagai 2 JP secara eksplisit', () => {
+    const sw = getPresetStrukturWaktu('SMP', 5, { jpPerSesi: 2 })
+    const sesiPertama = sw.hari['Selasa'].slots.find((slot) => slot.tipe === 'kbm')!
+
+    expect(sw.jp_per_sesi).toBe(2)
+    expect(sesiPertama.jp).toEqual([1, 2])
+    expect(sesiPertama.waktu).toHaveLength(2)
+  })
+
+  it('dapat membentuk sesi KBM satu JP bila lembaga membutuhkannya', () => {
+    const sw = getPresetStrukturWaktu('LAINNYA', 5, { jpPerSesi: 1, blokPerHari: 3 })
+    const sesiPertama = sw.hari['Selasa'].slots.find((slot) => slot.tipe === 'kbm')!
+
+    expect(sw.jp_per_sesi).toBe(1)
+    expect(sesiPertama.jp).toEqual([1])
+    expect(sesiPertama.waktu).toHaveLength(1)
+  })
 })

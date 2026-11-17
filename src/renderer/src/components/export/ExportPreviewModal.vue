@@ -12,7 +12,7 @@ import {
   FileText
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
-import { cellTextJP } from '@core/cell-parser'
+import { formatExportPart, getExportGuruCodes } from '@core/export-labels'
 
 const props = defineProps<{
   modelValue: boolean
@@ -105,8 +105,8 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
   if (!cell || !Array.isArray(cell) || cell.length === 0) {
     return { isSplit: false, a: '', b: '', single: '' }
   }
-  const a = Array.isArray(cell[0]) ? cell[0].join('/') : ''
-  const b = cell.length > 1 ? (Array.isArray(cell[1]) ? cell[1].join('/') : '') : a
+  const a = Array.isArray(cell[0]) ? formatExportPart(store.proyek, cell[0]) : ''
+  const b = cell.length > 1 ? (Array.isArray(cell[1]) ? formatExportPart(store.proyek, cell[1]) : '') : a
   const isSplit = cell.length > 1 && a !== b
   if (isSplit) {
     return { isSplit: true, a, b, single: '' }
@@ -120,6 +120,11 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
   <div
     v-if="modelValue"
     class="fixed inset-0 z-50 flex flex-col bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="export-preview-title"
+    tabindex="-1"
+    @keydown.esc="closeModal"
   >
     <!-- Header Toolbar Modal -->
     <header
@@ -133,21 +138,22 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
           <Printer class="h-4 w-4" />
         </div>
         <div>
-          <h2 class="text-sm font-semibold tracking-wide text-slate-100 flex items-center space-x-2">
+          <h2 id="export-preview-title" class="text-sm font-semibold tracking-wide text-slate-100 flex items-center space-x-2">
             <span>Pratinjau Lembar Cetak Dokumen</span>
             <span class="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-emerald-400 border border-slate-700">
               Kertas: A4 Standar
             </span>
           </h2>
           <p class="text-[11px] text-slate-400">
-            Periksa format kop sekolah, garis pemisah, dan tanda tangan sebelum menyimpan
+            Periksa format kop lembaga, garis pemisah, dan tanda tangan sebelum menyimpan
           </p>
         </div>
       </div>
 
       <!-- Tab Switcher Dokumen -->
-      <div class="flex items-center space-x-1 rounded-xl bg-slate-800 p-1 border border-slate-700">
+      <div class="flex items-center space-x-1 rounded-xl bg-slate-800 p-1 border border-slate-700" role="tablist" aria-label="Jenis dokumen pratinjau">
         <button
+          type="button"
           @click="activeDocTab = 'jadwal'"
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
@@ -155,12 +161,15 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
           ]"
+          role="tab"
+          :aria-selected="activeDocTab === 'jadwal'"
         >
           <Calendar class="h-3.5 w-3.5" />
           <span>1. Matriks Jadwal Pelajaran</span>
         </button>
 
         <button
+          type="button"
           @click="activeDocTab = 'beban'"
           :class="[
             'flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
@@ -168,6 +177,8 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
           ]"
+          role="tab"
+          :aria-selected="activeDocTab === 'beban'"
         >
           <Layers class="h-3.5 w-3.5" />
           <span>2. Lampiran Beban Mengajar</span>
@@ -179,24 +190,30 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
         <!-- Zoom Controls -->
         <div class="flex items-center space-x-1 border-r border-slate-700 pr-3 text-slate-400">
           <button
+            type="button"
             @click="handleZoomOut"
             class="rounded-lg p-1.5 hover:bg-slate-800 hover:text-slate-200 transition-colors"
             title="Perkecil"
+            aria-label="Perkecil pratinjau"
           >
             <ZoomOut class="h-3.5 w-3.5" />
           </button>
           <span class="text-xs font-mono w-10 text-center text-slate-300">{{ zoomLevel }}%</span>
           <button
+            type="button"
             @click="handleZoomIn"
             class="rounded-lg p-1.5 hover:bg-slate-800 hover:text-slate-200 transition-colors"
             title="Perbesar"
+            aria-label="Perbesar pratinjau"
           >
             <ZoomIn class="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             @click="resetZoom"
             class="rounded-lg p-1.5 hover:bg-slate-800 hover:text-slate-200 transition-colors"
             title="Reset Ukuran (100%)"
+            aria-label="Reset ukuran pratinjau ke 100 persen"
           >
             <RotateCcw class="h-3.5 w-3.5" />
           </button>
@@ -204,6 +221,7 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
 
         <!-- Tombol Simpan PDF -->
         <button
+          type="button"
           @click="triggerExportPdf"
           class="flex items-center space-x-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition-colors shadow-sm shadow-indigo-900/40"
           title="Simpan sebagai berkas PDF resmi (A4)"
@@ -214,6 +232,7 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
 
         <!-- Tombol Ekspor Excel -->
         <button
+          type="button"
           @click="triggerExportExcel"
           class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-sm shadow-emerald-900/40"
           title="Ekspor sebagai buku kerja Excel (.xlsx)"
@@ -224,9 +243,11 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
 
         <!-- Tutup Modal -->
         <button
+          type="button"
           @click="closeModal"
           class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors ml-1"
           title="Tutup Pratinjau"
+          aria-label="Tutup pratinjau dokumen"
         >
           <X class="h-5 w-5" />
         </button>
@@ -257,11 +278,11 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
         <!-- Opsi B: Kop Surat Standar (Logo di kiri, Teks di tengah) -->
         <template v-else>
           <div class="flex items-center justify-between pb-1">
-            <!-- Logo Sekolah (Sisi Kiri) -->
+            <!-- Logo Lembaga (Sisi Kiri) -->
             <div v-if="logoUrl" class="w-20 h-20 shrink-0 flex items-center justify-center mr-4">
               <img
                 :src="logoUrl"
-                alt="Logo Sekolah"
+                alt="Logo Lembaga"
                 class="max-h-20 max-w-20 object-contain"
               />
             </div>
@@ -275,10 +296,10 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
                 {{ store.proyek.meta.notaris }}
               </p>
               <h1 class="text-xl font-bold font-serif uppercase tracking-wider text-slate-950 leading-tight">
-                {{ store.proyek.meta.nama_sekolah || 'NAMA RESMI SEKOLAH / MADRASAH' }}
+                {{ store.proyek.meta.nama_sekolah || 'NAMA RESMI LEMBAGA / INSTITUSI' }}
               </h1>
               <p class="text-[11px] text-slate-600 mt-0.5 font-sans">
-                {{ store.proyek.meta.alamat_sekolah || 'Alamat lengkap sekolah, nomor telepon, dan email resmi' }}
+                {{ store.proyek.meta.alamat_sekolah || 'Alamat lengkap lembaga, nomor telepon, dan email resmi' }}
               </p>
             </div>
 
@@ -420,7 +441,8 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
                 <tr class="bg-teal-800 text-white font-bold">
                   <th class="border border-slate-600 px-1 py-1.5 text-center w-8">No</th>
                   <th class="border border-slate-600 px-2 py-1.5 text-left">Nama Guru & Gelar</th>
-                  <th class="border border-slate-600 px-1 py-1.5 text-center w-12">Kode</th>
+                  <th class="border border-slate-600 px-1 py-1.5 text-center w-14">Kode Guru</th>
+                  <th class="border border-slate-600 px-1 py-1.5 text-center w-14">Kode Mapel</th>
                   <th class="border border-slate-600 px-2 py-1.5 text-left">Mata Pelajaran</th>
                   <th
                     v-for="k in kelasList"
@@ -446,6 +468,9 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
                         : guruMap.get(p.guru_id) || '?'
                     }}
                   </td>
+                  <td class="border-r border-slate-400 bg-white text-center font-bold text-teal-800">
+                    {{ getExportGuruCodes(store.proyek, p) || '-' }}
+                  </td>
                   <td class="border-r border-slate-400 bg-white text-center font-bold text-teal-800">{{ p.kode }}</td>
                   <td class="border-r border-slate-400 bg-white px-2 py-1 text-slate-700">{{ p.mapel }}</td>
                   <td
@@ -462,7 +487,7 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
 
                 <!-- Baris Total JP Footer -->
                 <tr class="bg-slate-100 font-bold border-t-2 border-slate-900 text-slate-950">
-                  <td colspan="4" class="border-r border-slate-400 px-3 py-1.5 text-center font-bold uppercase">
+                  <td colspan="5" class="border-r border-slate-400 px-3 py-1.5 text-center font-bold uppercase">
                     TOTAL ALOKASI JAM PER KELAS
                   </td>
                   <td
@@ -492,7 +517,7 @@ function getCellDisplay(cell: any): { isSplit: boolean; a: string; b: string; si
               {{ store.proyek.meta.kota_tanggal || 'Ditetapkan pada tanggal: ....................' }}
             </p>
             <p class="font-semibold text-slate-900 mb-2">
-              {{ store.proyek.meta.pejabat_ttd?.jabatan || 'Kepala Sekolah' }},
+              {{ store.proyek.meta.pejabat_ttd?.jabatan || 'Pimpinan Lembaga' }},
             </p>
 
             <!-- Spasi TTD Fisik atau Gambar -->

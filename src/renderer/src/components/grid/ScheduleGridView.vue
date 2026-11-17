@@ -19,6 +19,8 @@ import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, SelectedCell } from '../../stores/uiStore'
 import { parseCellJP, cellTextJP, ambilTokenAktif } from '@core/cell-parser'
 import { SlotJam, Penugasan } from '@core/types'
+import { getGuruCodes } from '@core/guru-codes'
+import { getSlotOperatorLabel } from '@core/session-config'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
@@ -115,6 +117,8 @@ const namaGuruMap = computed(() => {
   return map
 })
 
+const guruById = computed(() => store.proyek.master.guru)
+
 // Jumlah error & total masalah untuk badge toolbar
 const errorCount = computed(() => {
   return store.hasilPemeriksaan.masalah.filter((m) => m.tingkat === 'error').length
@@ -133,18 +137,24 @@ const displayedHariList = computed(() => {
   )
 })
 
+function getKbmOrdinal(slots: SlotJam[], slotIndex: number): number {
+  return slots.slice(0, slotIndex + 1).filter((slot) => slot.tipe === 'kbm').length
+}
+
 // Cek apakah mode tampilan besar & fokus aktif
 const isLargeView = computed(() => uiStore.gridDensity === 'large')
 
 // Peta detail penugasan untuk tampilan sel mode besar (kode -> mapel, guru, warna)
 const penugasanDetailsByCode = computed(() => {
-  const map = new Map<string, { mapel: string; guru: string; warna?: string }>()
+  const map = new Map<string, { mapel: string; guru: string; guruKode: string; warna?: string }>()
   for (const p of store.proyek.master.penugasan) {
     const gids = p.guru_ids && p.guru_ids.length > 0 ? p.guru_ids : (p.guru_id ? [p.guru_id] : [])
     const guru = gids.map((id) => namaGuruMap.value.get(id) || '').filter(Boolean).join(' & ')
+    const guruKode = getGuruCodes(guruById.value, gids)
     map.set(p.kode.toUpperCase(), {
       mapel: p.mapel,
       guru,
+      guruKode,
       warna: p.warna_sel
     })
   }
@@ -152,7 +162,7 @@ const penugasanDetailsByCode = computed(() => {
 })
 
 // Ambil detail token kode untuk ditampilkan di sel mode besar
-function getCellTokenDetails(raw: string): Array<{ kode: string; mapel: string; guru: string }> {
+function getCellTokenDetails(raw: string): Array<{ kode: string; mapel: string; guru: string; guruKode: string }> {
   if (!raw) return []
   const tokens = raw.split(/[\s/|]+/).map((t) => t.trim().toUpperCase()).filter(Boolean)
   return tokens.map((token) => {
@@ -160,9 +170,14 @@ function getCellTokenDetails(raw: string): Array<{ kode: string; mapel: string; 
     return {
       kode: token,
       mapel: detail?.mapel || '',
-      guru: detail?.guru || ''
+      guru: detail?.guru || '',
+      guruKode: detail?.guruKode || ''
     }
   })
+}
+
+function getCellGuruCodes(raw: string): string {
+  return Array.from(new Set(getCellTokenDetails(raw).map((detail) => detail.guruKode).filter(Boolean))).join(' / ')
 }
 
 // Fungsi ganti filter hari & otomatis sesuaikan sel aktif serta densitas
@@ -322,6 +337,16 @@ function hasClash(hari: string, slotId: string, kelasId: string): boolean {
 function getClashTooltip(hari: string, slotId: string, kelasId: string): string {
   const key = `${hari}#${slotId}#${kelasId}`
   return issuesByCellKey.value[key]?.join('\n') || ''
+}
+
+function getCellTooltip(hari: string, slotId: string, kelasId: string): string {
+  const raw = getCellRaw(hari, slotId, kelasId)
+  const guruCodes = getCellGuruCodes(raw)
+  const clash = getClashTooltip(hari, slotId, kelasId)
+  const lines: string[] = []
+  if (guruCodes) lines.push(`Kode guru: ${guruCodes}`)
+  if (clash) lines.push(clash)
+  return lines.join('\n')
 }
 
 function isHighlighted(hari: string, slotId: string, kelasId: string): boolean {
@@ -610,11 +635,13 @@ onUnmounted(() => {
       <div class="flex flex-wrap items-center gap-2">
         <span class="font-bold text-slate-700 dark:text-slate-200 text-xs hidden sm:inline">Kisi Jadwal</span>
         <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+        <span class="hidden lg:inline text-[10px] text-slate-400 dark:text-slate-500">Klik dua kali atau tekan Enter untuk mengisi sel</span>
 
 
         <!-- Segmented Tab Pemilih Hari (Fokus Harian) -->
         <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           <button
+            type="button"
             @click="selectHariFilter('all')"
             :class="[
               'rounded-lg px-2.5 py-1 text-xs font-semibold transition-all',
@@ -623,10 +650,12 @@ onUnmounted(() => {
                 : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
             ]"
             title="Tampilkan semua hari pembelajaran (Alt+1)"
+            :aria-pressed="uiStore.selectedHariFilter === 'all'"
           >
             Semua Hari
           </button>
           <button
+            type="button"
             v-for="(hari, idx) in activeHariList"
             :key="hari.nama"
             @click="selectHariFilter(hari.nama)"
@@ -637,6 +666,7 @@ onUnmounted(() => {
                 : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
             ]"
             :title="`Fokus ke jadwal hari ${hari.nama} (Alt+${idx + 2})`"
+            :aria-pressed="uiStore.selectedHariFilter.toLowerCase() === hari.nama.toLowerCase()"
           >
             {{ hari.nama }}
           </button>
@@ -648,6 +678,7 @@ onUnmounted(() => {
         <!-- Toggle Ukuran Tampilan Sel: Kompak vs Besar & Fokus -->
         <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           <button
+            type="button"
             @click="uiStore.setGridDensity('compact')"
             :class="[
               'flex items-center space-x-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-all',
@@ -656,11 +687,13 @@ onUnmounted(() => {
                 : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
             ]"
             title="Tampilan kisi sel kompak (tinggi 40px)"
+            :aria-pressed="!isLargeView"
           >
             <Minimize2 class="h-3 w-3" />
             <span class="hidden md:inline">Kompak</span>
           </button>
           <button
+            type="button"
             @click="uiStore.setGridDensity('large')"
             :class="[
               'flex items-center space-x-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-all',
@@ -669,6 +702,7 @@ onUnmounted(() => {
                 : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
             ]"
             title="Tampilan kisi sel besar & fokus rincian mapel (tinggi 64px)"
+            :aria-pressed="isLargeView"
           >
             <Maximize2 class="h-3 w-3" />
             <span class="hidden md:inline">Besar & Fokus</span>
@@ -679,19 +713,23 @@ onUnmounted(() => {
 
         <!-- Undo & Redo -->
         <button
+          type="button"
           :disabled="!store.canUndo"
           @click="store.undo()"
           class="flex items-center space-x-1 rounded-lg p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
           title="Undo (Ctrl+Z)"
+          aria-label="Batalkan perubahan terakhir"
         >
           <RotateCcw class="h-3.5 w-3.5" />
           <span class="hidden lg:inline text-[11px]">Undo</span>
         </button>
         <button
+          type="button"
           :disabled="!store.canRedo"
           @click="store.redo()"
           class="flex items-center space-x-1 rounded-lg p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
           title="Redo (Ctrl+Y)"
+          aria-label="Ulangi perubahan terakhir"
         >
           <RotateCw class="h-3.5 w-3.5" />
           <span class="hidden lg:inline text-[11px]">Redo</span>
@@ -701,6 +739,7 @@ onUnmounted(() => {
 
         <!-- Toggle Panel Masalah & Kode (Sidebar Kanan) -->
         <button
+          type="button"
           @click="uiStore.toggleRightSidebar"
           :class="[
             'flex items-center space-x-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition-all',
@@ -709,6 +748,7 @@ onUnmounted(() => {
               : 'border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           ]"
           :title="uiStore.isRightSidebarOpen ? 'Tutup Panel Masalah & Kode (Ctrl+I)' : 'Buka Panel Masalah & Kode (Ctrl+I)'"
+          :aria-label="uiStore.isRightSidebarOpen ? 'Tutup panel masalah dan kode' : 'Buka panel masalah dan kode'"
         >
           <PanelRightOpen v-if="!uiStore.isRightSidebarOpen" class="h-3.5 w-3.5 text-emerald-500 shrink-0" />
           <PanelRightClose v-else class="h-3.5 w-3.5 shrink-0" />
@@ -815,7 +855,7 @@ onUnmounted(() => {
                   :class="isLargeView ? 'py-3' : 'py-2'"
                 >
                   <div :class="['font-bold text-slate-800 dark:text-slate-300', isLargeView ? 'text-sm' : 'text-xs']">
-                    {{ slot.id }}
+                    {{ getSlotOperatorLabel(slot, getKbmOrdinal(hari.slots, slotIdx)) }}
                   </div>
                   <div :class="['font-mono text-slate-500 dark:text-slate-400 leading-tight mt-0.5', isLargeView ? 'text-[11px]' : 'text-[10px]']">
                     {{ slot.waktu[0] ? slot.waktu[0].split('-')[0] : '' }}
@@ -847,7 +887,7 @@ onUnmounted(() => {
                       ? 'bg-amber-100 text-amber-900 dark:bg-amber-400/25 dark:text-amber-200 ring-2 ring-amber-500 dark:ring-amber-400 ring-inset'
                       : ''
                   ]"
-                  :title="getClashTooltip(hari.nama, slot.id, kelas.id)"
+                  :title="getCellTooltip(hari.nama, slot.id, kelas.id)"
                 >
                   <!-- Mode Edit Langsung dalam Sel -->
                   <div
@@ -894,9 +934,9 @@ onUnmounted(() => {
                           v-for="(detail, dIdx) in getCellTokenDetails(getCellRaw(hari.nama, slot.id, kelas.id)).slice(0, 2)"
                           :key="`${detail.kode}-${dIdx}`"
                           class="truncate text-[10px] font-sans font-medium text-slate-500 dark:text-slate-400 max-w-[125px] px-0.5 mt-0.5"
-                          :title="`${detail.mapel}${detail.guru ? ' (' + detail.guru + ')' : ''}`"
+                          :title="`${detail.mapel}${detail.guruKode ? ' · ' + detail.guruKode : ''}${detail.guru ? ' (' + detail.guru + ')' : ''}`"
                         >
-                          {{ detail.mapel || detail.guru || '' }}
+                          {{ detail.mapel || detail.guru || '' }}{{ detail.guruKode ? ` · ${detail.guruKode}` : '' }}
                         </div>
                       </div>
 
@@ -911,6 +951,12 @@ onUnmounted(() => {
                         ]"
                       >
                         {{ getCellRaw(hari.nama, slot.id, kelas.id) }}
+                      </span>
+                      <span
+                        v-if="!isLargeView && getCellGuruCodes(getCellRaw(hari.nama, slot.id, kelas.id))"
+                        class="text-[8px] font-sans font-medium text-slate-500 dark:text-slate-400"
+                      >
+                        {{ getCellGuruCodes(getCellRaw(hari.nama, slot.id, kelas.id)) }}
                       </span>
                     </template>
 

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export type ThemeMode = 'dark' | 'light'
-export type ActiveTab = 'jadwal' | 'beban' | 'guru' | 'kelas' | 'pengaturan'
+export type ActiveTab = 'jadwal' | 'beban' | 'guru' | 'kelas' | 'sesi' | 'pengaturan'
 export type SidebarTab = 'issues' | 'codes'
 export type AutoSaveStatus = 'clean' | 'dirty' | 'saving' | 'error'
 

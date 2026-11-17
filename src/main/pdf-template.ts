@@ -1,5 +1,6 @@
 import { ProyekData } from '../core/types'
-import { cellTextJP } from '../core/cell-parser'
+import { formatExportPart, getExportGuruCodes } from '../core/export-labels'
+import { APP_NAME } from '../core/app-meta'
 
 /**
  * Menghasilkan markup HTML dokumen resmi siap cetak ke PDF dengan kop surat,
@@ -55,7 +56,7 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
     <div class="ttd-section">
       <div class="ttd-box">
         <div class="ttd-tanggal">${escapeHtml(data.meta.kota_tanggal || 'Tanggal: ....................')}</div>
-        <div class="ttd-jabatan">${escapeHtml(data.meta.pejabat_ttd?.jabatan || 'Kepala Sekolah')},</div>
+        <div class="ttd-jabatan">${escapeHtml(data.meta.pejabat_ttd?.jabatan || 'Pimpinan Lembaga')},</div>
         <div class="ttd-space">
           ${
             safeTtdUrl
@@ -86,8 +87,8 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
         kelasList.forEach((k) => {
           const cell = data.jadwal[hari]?.[slot.id]?.[k.id]
           if (cell && cell.length > 0) {
-            const a = cell[0] ? cell[0].join('/') : ''
-            const b = cell.length > 1 ? (cell[1] ? cell[1].join('/') : '') : a
+            const a = cell[0] ? formatExportPart(data, cell[0]) : ''
+            const b = cell.length > 1 ? (cell[1] ? formatExportPart(data, cell[1]) : '') : a
             const isSplit = cell.length > 1 && a !== b
             if (isSplit) {
               cellsHtml += `<td class="cell-kbm cell-kbm-split font-bold"><div class="split-wrapper"><span class="split-col split-left">${escapeHtml(a)}</span><span class="split-col split-right">${escapeHtml(b)}</span></div></td>`
@@ -132,6 +133,7 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
       p.guru_ids && p.guru_ids.length > 0
         ? p.guru_ids.map((id) => guruMap.get(id) || '?').join(' & ')
         : guruMap.get(p.guru_id) || '?'
+    const guruKode = getExportGuruCodes(data, p) || '-'
 
     let kelasJpHtml = ''
     kelasList.forEach((k) => {
@@ -145,6 +147,7 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
       <tr>
         <td class="text-center">${idx + 1}</td>
         <td class="text-left font-semibold">${escapeHtml(guruNama)}</td>
+        <td class="text-center font-bold text-emerald-800">${escapeHtml(guruKode)}</td>
         <td class="text-center font-bold text-emerald-800">${escapeHtml(p.kode)}</td>
         <td class="text-left">${escapeHtml(p.mapel)}</td>
         ${kelasJpHtml}
@@ -168,7 +171,7 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Cetak Dokumen Resmi Jadwal Sekolah</title>
+  <title>Cetak Dokumen Resmi ${APP_NAME}</title>
   <style>
     @page {
       size: A4 landscape;
@@ -468,7 +471,8 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
         <tr>
           <th style="width: 30px;">No</th>
           <th>Nama Guru & Gelar</th>
-          <th style="width: 45px;">Kode</th>
+          <th style="width: 55px;">Kode Guru</th>
+          <th style="width: 55px;">Kode Mapel</th>
           <th>Mata Pelajaran</th>
           ${kelasList.map((k) => `<th>${escapeHtml(k.nama)}</th>`).join('')}
           <th style="width: 55px;">Total JP</th>
@@ -477,7 +481,7 @@ export function generateSchedulePrintHtml(data: ProyekData): string {
       <tbody>
         ${bebanRowsHtml}
         <tr style="background-color: #f8fafc; font-weight: bold;">
-          <td colspan="4" class="text-center font-bold">TOTAL ALOKASI JAM PER KELAS</td>
+          <td colspan="5" class="text-center font-bold">TOTAL ALOKASI JAM PER KELAS</td>
           ${totalPerKelasHtml}
           <td class="text-center font-bold">${grandTotalJP || ''}</td>
         </tr>

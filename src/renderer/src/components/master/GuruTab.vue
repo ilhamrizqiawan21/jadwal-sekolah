@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   UserPlus,
   Trash2,
@@ -9,15 +9,30 @@ import {
   Calendar,
   AlertCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  Search
 } from 'lucide-vue-next'
 import { Guru } from '@core/types'
+import { getGuruCode } from '@core/guru-codes'
+import { validateRequiredField } from '@core/ui-validation'
+import { getSlotOperatorLabel } from '@core/session-config'
 import { useScheduleStore } from '../../stores/scheduleStore'
 
 const store = useScheduleStore()
 
-const selectedGuruId = ref<string | null>(null)
+const selectedGuruId = ref<string | null>(store.proyek.master.guru[0]?.id || null)
 const isEditing = ref<boolean>(false)
+const guruSearch = ref('')
+
+watch(
+  () => store.proyek.master.guru.length,
+  () => {
+    if (!selectedGuruId.value && !isEditing.value) {
+      selectedGuruId.value = store.proyek.master.guru[0]?.id || null
+    }
+  },
+  { immediate: true }
+)
 
 // Form State Guru
 const formGuru = ref<{
@@ -41,6 +56,16 @@ const activeGuru = computed(() => {
   return store.proyek.master.guru.find((g) => g.id === selectedGuruId.value) || null
 })
 
+const filteredGurus = computed(() => {
+  const query = guruSearch.value.trim().toLowerCase()
+  if (!query) return store.proyek.master.guru
+  return store.proyek.master.guru.filter((guru) => {
+    const code = getGuruCode(guru).toLowerCase()
+    const nip = (guru.nip_nuptk || '').toLowerCase()
+    return guru.nama.toLowerCase().includes(query) || code.includes(query) || nip.includes(query)
+  })
+})
+
 // Hari aktif KBM
 const activeDays = computed(() => {
   return Object.entries(store.proyek.struktur_waktu.hari)
@@ -52,9 +77,10 @@ const activeDays = computed(() => {
 const maxSlots = computed(() => {
   const map = new Map<string, string>()
   for (const day of activeDays.value) {
-    for (const s of day.slots) {
+    for (const [slotIndex, s] of day.slots.entries()) {
       if (s.tipe === 'kbm' && !map.has(s.id)) {
-        map.set(s.id, s.label || (s.jp && s.jp.length > 0 ? `Jam ${s.jp.join('-')}` : s.id))
+        const ordinal = day.slots.slice(0, slotIndex + 1).filter((slot) => slot.tipe === 'kbm').length
+        map.set(s.id, getSlotOperatorLabel(s, ordinal))
       }
     }
   }
@@ -65,6 +91,13 @@ const maxSlots = computed(() => {
 function selectGuru(guruId: string): void {
   selectedGuruId.value = guruId
   isEditing.value = false
+}
+
+function handleGuruKeydown(event: KeyboardEvent, guruId: string): void {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    selectGuru(guruId)
+  }
 }
 
 function openAddGuruModal(): void {
@@ -94,7 +127,11 @@ function editGuru(guru: Guru): void {
 }
 
 function saveGuru(): void {
-  if (!formGuru.value.nama.trim()) return
+  const namaError = validateRequiredField(formGuru.value.nama, 'Nama guru')
+  if (namaError) {
+    alert(namaError)
+    return
+  }
 
   const existingIdx = store.proyek.master.guru.findIndex((g) => g.id === formGuru.value.id)
   if (existingIdx !== -1) {
@@ -165,6 +202,8 @@ function setAllDayUnavailable(hari: string): void {
   const dayData = store.proyek.struktur_waktu.hari[hari]
   if (!dayData) return
 
+  if (!window.confirm(`Tandai semua sesi KBM hari ${hari} sebagai berhalangan untuk ${activeGuru.value.nama}?`)) return
+
   const kbmSlotIds = dayData.slots.filter((s) => s.tipe === 'kbm').map((s) => s.id)
   const tidakBisa = { ...(activeGuru.value.tidak_bisa || {}) }
   tidakBisa[hari] = kbmSlotIds
@@ -197,6 +236,7 @@ function clearDayUnavailable(hari: string): void {
           <p class="text-[11px] text-slate-500 dark:text-slate-400">Total {{ store.proyek.master.guru.length }} guru terdaftar</p>
         </div>
         <button
+          type="button"
           @click="openAddGuruModal"
           class="flex items-center space-x-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
         >
@@ -206,18 +246,42 @@ function clearDayUnavailable(hari: string): void {
       </div>
 
       <!-- List Guru -->
+      <div class="border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+        <label for="guru-search" class="sr-only">Cari guru</label>
+        <div class="relative">
+          <Search class="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+          <input
+            id="guru-search"
+            v-model="guruSearch"
+            type="search"
+            autocomplete="off"
+            placeholder="Cari nama, kode, atau NIP..."
+            aria-describedby="guru-search-hint"
+            class="w-full rounded-lg border border-slate-300 bg-slate-50 py-2 pl-8 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          />
+        </div>
+        <p id="guru-search-hint" class="mt-1 px-1 text-[10px] text-slate-400">
+          {{ filteredGurus.length }} dari {{ store.proyek.master.guru.length }} guru tampil
+        </p>
+      </div>
+
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
         <div
-          v-if="store.proyek.master.guru.length === 0"
+          v-if="filteredGurus.length === 0"
           class="p-6 text-center text-xs text-slate-400 dark:text-slate-500"
         >
-          Belum ada guru. Klik tombol Tambah di atas.
+          {{ guruSearch ? 'Guru tidak ditemukan.' : 'Belum ada guru. Klik tombol Tambah di atas.' }}
         </div>
 
         <div
-          v-for="guru in store.proyek.master.guru"
+          v-for="guru in filteredGurus"
           :key="guru.id"
           @click="selectGuru(guru.id)"
+          @keydown="handleGuruKeydown($event, guru.id)"
+          role="button"
+          tabindex="0"
+          :aria-pressed="selectedGuruId === guru.id"
+          :aria-label="`Pilih ${guru.nama}, ${getGuruCode(guru)}`"
           :class="[
             'group flex cursor-pointer items-center justify-between rounded-lg p-2.5 text-xs transition-all',
             selectedGuruId === guru.id
@@ -233,25 +297,36 @@ function clearDayUnavailable(hari: string): void {
               {{ guru.nama.charAt(0) }}
             </span>
             <div class="truncate">
-              <div class="truncate text-slate-800 dark:text-slate-100 font-medium">{{ guru.nama }}</div>
+              <div class="flex items-center gap-1.5 truncate text-slate-800 dark:text-slate-100 font-medium">
+                <span class="shrink-0 rounded bg-slate-100 px-1 font-mono text-[10px] text-emerald-700 dark:bg-slate-800 dark:text-emerald-300">
+                  {{ getGuruCode(guru) }}
+                </span>
+                <span class="truncate">{{ guru.nama }}</span>
+              </div>
               <div class="text-[10px] text-slate-500 dark:text-slate-400">
                 {{ guru.nip_nuptk ? `NIP: ${guru.nip_nuptk}` : 'Non-NIP' }}
               </div>
             </div>
           </div>
 
-          <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="flex items-center space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             <button
+              type="button"
               @click.stop="editGuru(guru)"
               class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200"
+              :aria-label="`Edit ${guru.nama}`"
+              title="Edit profil guru"
             >
-              <Edit2 class="h-3 w-3" />
+              <Edit2 class="h-3 w-3" aria-hidden="true" />
             </button>
             <button
+              type="button"
               @click.stop="removeGuru(guru.id)"
               class="rounded p-1 text-slate-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400"
+              :aria-label="`Hapus ${guru.nama}`"
+              title="Hapus guru"
             >
-              <Trash2 class="h-3 w-3" />
+              <Trash2 class="h-3 w-3" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -265,6 +340,9 @@ function clearDayUnavailable(hari: string): void {
         <div v-if="activeGuru">
           <div class="flex items-center space-x-2">
             <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ activeGuru.nama }}</h3>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30">
+              {{ getGuruCode(activeGuru) }}
+            </span>
             <span
               v-if="activeGuru.jabatan"
               class="rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-mono border border-slate-200 dark:border-transparent"
@@ -278,7 +356,7 @@ function clearDayUnavailable(hari: string): void {
         </div>
         <div v-else-if="isEditing">
           <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
-            {{ formGuru.id.startsWith('guru:') ? 'Tambah Guru Baru' : 'Edit Data Guru' }}
+            {{ store.proyek.master.guru.some(g => g.id === formGuru.id) ? 'Edit Data Guru' : 'Tambah Guru Baru' }}
           </h3>
           <p class="text-xs text-slate-500 dark:text-slate-400">Masukkan identitas lengkap guru</p>
         </div>
@@ -289,6 +367,7 @@ function clearDayUnavailable(hari: string): void {
 
         <div v-if="activeGuru && !isEditing" class="flex items-center space-x-2">
           <button
+            type="button"
             @click="editGuru(activeGuru)"
             class="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
@@ -302,8 +381,9 @@ function clearDayUnavailable(hari: string): void {
       <div v-if="isEditing" class="p-6">
         <div class="max-w-md space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Lengkap & Gelar *</label>
+            <label for="guru-name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Lengkap & Gelar *</label>
             <input
+              id="guru-name"
               v-model="formGuru.nama"
               type="text"
               placeholder="Contoh: Drs. H. Ahmad Dahlan, M.Pd."
@@ -312,8 +392,9 @@ function clearDayUnavailable(hari: string): void {
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">NIP / NUPTK</label>
+            <label for="guru-nip" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">NIP / NUPTK</label>
             <input
+              id="guru-nip"
               v-model="formGuru.nip"
               type="text"
               placeholder="19xxxxxxxxxxxxxx (opsional)"
@@ -323,19 +404,21 @@ function clearDayUnavailable(hari: string): void {
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Singkat</label>
+              <label for="guru-code" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Guru</label>
               <input
+                id="guru-code"
                 v-model="formGuru.kode_prefiks"
                 type="text"
-                placeholder="Contoh: 1, 2, BIO"
+                placeholder="Contoh: G01, GURU-MAT, BIO"
                 class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Warna Penanda</label>
+              <label for="guru-color" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Warna Penanda</label>
               <div class="flex items-center space-x-2">
                 <input
+                  id="guru-color"
                   v-model="formGuru.warna"
                   type="color"
                   class="h-9 w-12 rounded cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5"
@@ -347,6 +430,7 @@ function clearDayUnavailable(hari: string): void {
 
           <div class="flex items-center space-x-2 pt-2">
             <button
+              type="button"
               @click="saveGuru"
               class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md"
             >
@@ -354,6 +438,7 @@ function clearDayUnavailable(hari: string): void {
               <span>Simpan Data</span>
             </button>
             <button
+              type="button"
               @click="isEditing = false"
               class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             >
@@ -412,6 +497,7 @@ function clearDayUnavailable(hari: string): void {
                 >
                   <button
                     v-if="day.slots.some((s) => s.id === slot.id && s.tipe === 'kbm')"
+                    type="button"
                     @click="toggleAvailability(day.hari, slot.id)"
                     :class="[
                       'h-8 w-full min-w-[40px] rounded-lg border text-xs font-semibold transition-all flex items-center justify-center',
@@ -420,6 +506,7 @@ function clearDayUnavailable(hari: string): void {
                         : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-400'
                     ]"
                     :title="isSlotUnavailable(day.hari, slot.id) ? 'Status: Berhalangan' : 'Status: Tersedia'"
+                    :aria-label="`${day.hari}, ${slot.nama}: ${isSlotUnavailable(day.hari, slot.id) ? 'berhalangan' : 'tersedia'}`"
                   >
                     <span v-if="isSlotUnavailable(day.hari, slot.id)">✕</span>
                     <span v-else>✓</span>
@@ -430,12 +517,14 @@ function clearDayUnavailable(hari: string): void {
                 <td class="px-3 py-2 text-right">
                   <div class="flex items-center justify-end space-x-1 text-[10px]">
                     <button
+                      type="button"
                       @click="setAllDayUnavailable(day.hari)"
                       class="rounded bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 transition-colors px-2 py-1"
                     >
                       Izin Sehari
                     </button>
                     <button
+                      type="button"
                       @click="clearDayUnavailable(day.hari)"
                       class="rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors px-2 py-1"
                     >

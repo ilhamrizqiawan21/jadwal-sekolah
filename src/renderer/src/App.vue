@@ -6,6 +6,7 @@ import {
   Layers,
   GraduationCap,
   Settings,
+  Clock,
   FileSpreadsheet,
   Printer,
   Sun,
@@ -13,11 +14,17 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ExternalLink
 } from 'lucide-vue-next'
 import { useScheduleStore } from './stores/scheduleStore'
 import { useUiStore, ActiveTab } from './stores/uiStore'
 import { getDefaultAppIcon, formatWindowTitle } from './utils/app-icon'
+import { createAutoSaveController } from './utils/auto-save'
+import { consumeRefreshSnapshot, saveRefreshSnapshot, shouldRefreshRenderer } from './utils/app-refresh'
+import { getProjectSnapshot } from './utils/project-snapshot'
+import { APP_NAME, DEFAULT_PROJECT_NAME, DEFAULT_FILE_NAME } from '@core/app-meta'
+import { shouldConfirmProjectReplacement } from '@core/project-safety'
 
 // Komponen
 import SchoolSetupWizard from './components/wizard/SchoolSetupWizard.vue'
@@ -27,6 +34,7 @@ import GuruTab from './components/master/GuruTab.vue'
 import KelasTab from './components/master/KelasTab.vue'
 import BebanTab from './components/master/BebanTab.vue'
 import PengaturanTab from './components/master/PengaturanTab.vue'
+import SesiKbmTab from './components/master/SesiKbmTab.vue'
 import ExportPreviewModal from './components/export/ExportPreviewModal.vue'
 import BreadcrumbHeader from './components/common/BreadcrumbHeader.vue'
 
@@ -61,7 +69,7 @@ watch(
   { immediate: true }
 )
 
-// 2. Sinkronisasi Judul Jendela saat Nama Sekolah Diedit (Tanpa Resend Payload Gambar)
+  // 2. Sinkronisasi judul jendela saat nama lembaga diedit
 watch(
   () => store.proyek.meta.nama_sekolah,
   (newName) => {
@@ -80,6 +88,25 @@ const isExporting = ref<boolean>(false)
 const exportStatusMessage = ref<string | null>(null)
 const isExportPreviewOpen = ref<boolean>(false)
 const previewInitialTab = ref<'jadwal' | 'beban'>('jadwal')
+const autoSaveController = createAutoSaveController({
+  intervalMs: 60_000,
+  shouldSave: () => Boolean(store.filePath && store.dirty && window.api?.saveProject),
+  save: async () => {
+    if (!store.filePath || !window.api?.saveProject) return
+    await window.api.saveProject(store.filePath, getProjectSnapshot(store.proyek))
+    store.dirty = false
+  },
+  onStateChange: (state) => uiStore.setAutoSaveStatus(state)
+})
+
+watch(
+  () => store.dirty,
+  (dirty) => {
+    if (dirty && uiStore.autoSaveStatus === 'clean') uiStore.setAutoSaveStatus('dirty')
+    if (!dirty && uiStore.autoSaveStatus !== 'saving') uiStore.setAutoSaveStatus('clean')
+  },
+  { immediate: true }
+)
 
 function openExportPreview(tab: 'jadwal' | 'beban' = 'jadwal'): void {
   previewInitialTab.value = tab
@@ -91,8 +118,15 @@ const navItems: { id: ActiveTab; label: string; icon: any }[] = [
   { id: 'beban', label: 'Beban Mengajar', icon: Layers },
   { id: 'guru', label: 'Guru & Izin', icon: Users },
   { id: 'kelas', label: 'Data Kelas', icon: GraduationCap },
+  { id: 'sesi', label: 'Sesi KBM', icon: Clock },
   { id: 'pengaturan', label: 'Pengaturan', icon: Settings }
 ]
+
+const GITHUB_REPOSITORY_URL = 'https://github.com/ilhamrizqiawan21/jadwal-sekolah'
+
+function openGithubRepository(): void {
+  window.open(GITHUB_REPOSITORY_URL, '_blank', 'noopener,noreferrer')
+}
 
 function showNotification(msg: string): void {
   exportStatusMessage.value = msg
@@ -107,6 +141,10 @@ async function handleOpenFile(): Promise<void> {
     if (window.api?.openFileDialog) {
       const res = await window.api.openFileDialog()
       if (res && res.data) {
+        if (
+          shouldConfirmProjectReplacement(store.proyek, store.filePath, store.dirty) &&
+          !window.confirm('Buka berkas baru akan mengganti proyek yang sedang dibuka. Lanjutkan?')
+        ) return
         store.loadProjectData(res.data, res.filePath)
         showNotification('✓ Berkas berhasil dimuat')
       }
@@ -121,12 +159,13 @@ async function handleOpenFile(): Promise<void> {
 async function handleSaveFile(): Promise<void> {
   try {
     if (window.api?.saveProject) {
+      const projectSnapshot = getProjectSnapshot(store.proyek)
       if (store.filePath) {
-        await window.api.saveProject(store.filePath, store.proyek)
+        await window.api.saveProject(store.filePath, projectSnapshot)
         store.dirty = false
         showNotification('✓ Berhasil disimpan')
       } else {
-        const savedPath = await window.api.saveFileDialog('jadwal-sekolah.jadwal', store.proyek)
+        const savedPath = await window.api.saveFileDialog(DEFAULT_FILE_NAME, projectSnapshot)
         if (savedPath) {
           store.filePath = savedPath
           store.dirty = false
@@ -141,13 +180,32 @@ async function handleSaveFile(): Promise<void> {
   }
 }
 
+function handleRefresh(): void {
+  const canRefresh = shouldRefreshRenderer(
+    store.dirty,
+    () => window.confirm('Ada perubahan yang belum disimpan. Tetap muat ulang tampilan aplikasi?')
+  )
+  if (!canRefresh) return
+
+  const saved = saveRefreshSnapshot({
+    data: store.proyek,
+    filePath: store.filePath,
+    dirty: store.dirty
+  })
+  if (!saved) {
+    alert('Refresh dibatalkan karena state proyek tidak dapat diamankan di memori sesi.')
+    return
+  }
+  window.location.reload()
+}
+
 async function handleExportExcel(): Promise<void> {
   try {
     if (window.api?.exportExcel) {
-      const savePath = await window.api.saveFileDialog('jadwal-sekolah.xlsx')
+      const savePath = await window.api.saveFileDialog('jadwal-pendidikan.xlsx')
       if (savePath) {
         isExporting.value = true
-        await window.api.exportExcel(savePath, store.proyek)
+        await window.api.exportExcel(savePath, getProjectSnapshot(store.proyek))
         isExporting.value = false
         showNotification('✓ Ekspor Excel (.xlsx) selesai')
       }
@@ -163,10 +221,10 @@ async function handleExportExcel(): Promise<void> {
 async function handlePrintPdf(): Promise<void> {
   try {
     if (window.api?.printToPdf) {
-      const savePath = await window.api.saveFileDialog('jadwal-sekolah.pdf')
+      const savePath = await window.api.saveFileDialog('jadwal-pendidikan.pdf')
       if (savePath) {
         isExporting.value = true
-        await window.api.printToPdf(savePath, store.proyek)
+        await window.api.printToPdf(savePath, getProjectSnapshot(store.proyek))
         isExporting.value = false
         showNotification('✓ Berkas PDF berhasil dicetak')
       }
@@ -200,6 +258,12 @@ function handleGlobalKeyDown(e: KeyboardEvent): void {
     uiStore.toggleRightSidebar()
     return
   }
+
+  // Ctrl+R / Cmd+R untuk memuat ulang renderer tanpa menutup aplikasi
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'r') {
+    e.preventDefault()
+    handleRefresh()
+  }
 }
 
 let lastWindowWidth = typeof window !== 'undefined' ? window.innerWidth : 1360
@@ -223,13 +287,22 @@ onMounted(() => {
   window.addEventListener('resize', handleWindowResize)
   handleWindowResize()
 
+  const refreshSnapshot = consumeRefreshSnapshot()
+  if (refreshSnapshot) {
+    store.loadProjectData(refreshSnapshot.data, refreshSnapshot.filePath)
+    store.dirty = refreshSnapshot.dirty
+  }
+
+  autoSaveController.start()
+
   // Jika proyek baru pertama kali dan kelas masih kosong, tawarkan wizard
-  if (store.proyek.master.kelas.length === 0 && store.proyek.meta.nama_sekolah === 'Sekolah Baru') {
+  if (store.proyek.master.kelas.length === 0 && store.proyek.meta.nama_sekolah === DEFAULT_PROJECT_NAME) {
     uiStore.setWizardOpen(true)
   }
 })
 
 onUnmounted(() => {
+  autoSaveController.stop()
   window.removeEventListener('keydown', handleGlobalKeyDown)
   window.removeEventListener('resize', handleWindowResize)
 })
@@ -244,26 +317,26 @@ onUnmounted(() => {
         uiStore.isLeftSidebarCollapsed ? 'w-16' : 'w-64'
       ]"
     >
-      <!-- Header Sidebar: Expanded Mode (Logo Sekolah + Info + Tombol Toggle Tunggal di Bawahnya) -->
+      <!-- Header Sidebar: Expanded Mode (Logo Lembaga + Info) -->
       <div
         v-if="!uiStore.isLeftSidebarCollapsed"
         class="border-b border-slate-200 dark:border-slate-800 p-3 space-y-2.5 shrink-0 transition-all"
       >
         <div class="flex items-center space-x-2.5 min-w-0">
-          <!-- Logo Sekolah Responsif (Membesar saat Terbuka) -->
+          <!-- Logo lembaga responsif -->
           <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
             <img
               :src="activeLogoUrl"
-              :alt="schoolLogoUrl ? 'Logo Sekolah' : 'Logo Jadwal Sekolah'"
+              :alt="schoolLogoUrl ? 'Logo Lembaga' : 'Logo Jadwal Pendidikan'"
               class="h-full w-full object-contain p-1"
             />
           </div>
 
-          <!-- Info Nama & Periode Sekolah -->
+          <!-- Info nama lembaga dan periode -->
           <div class="min-w-0 flex-1 truncate">
             <div class="flex items-center space-x-1.5">
               <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
-                {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
+                {{ store.proyek.meta.nama_sekolah || APP_NAME }}
               </span>
               <span
                 v-if="store.dirty"
@@ -289,19 +362,19 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Header Sidebar: Collapsed Mode (Logo Sekolah Responsif + Tombol Toggle Minimalis di Bawahnya) -->
+      <!-- Header Sidebar: Collapsed Mode -->
       <div
         v-else
         class="border-b border-slate-200 dark:border-slate-800 p-2.5 flex flex-col items-center space-y-2 shrink-0 transition-all"
       >
-        <!-- Logo Sekolah Responsif (Mengecil saat Tertutup) -->
+        <!-- Logo lembaga responsif -->
         <div
           class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs transition-all duration-200"
-          :title="store.proyek.meta.nama_sekolah || 'Jadwal Sekolah'"
+          :title="store.proyek.meta.nama_sekolah || APP_NAME"
         >
           <img
             :src="activeLogoUrl"
-            :alt="schoolLogoUrl ? 'Logo Sekolah' : 'Logo Jadwal Sekolah'"
+            :alt="schoolLogoUrl ? 'Logo Lembaga' : 'Logo Jadwal Pendidikan'"
             class="h-full w-full object-contain p-0.5"
           />
         </div>
@@ -381,6 +454,26 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
+
+        <!-- Section: Pembaruan Aplikasi -->
+        <div>
+          <div
+            v-if="!uiStore.isLeftSidebarCollapsed"
+            class="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+          >
+            Pembaruan Aplikasi
+          </div>
+          <button
+            type="button"
+            @click="openGithubRepository"
+            class="flex items-center rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200 transition-colors"
+            :class="uiStore.isLeftSidebarCollapsed ? 'h-10 w-10 mx-auto justify-center' : 'w-full py-2.5 px-3 space-x-3'"
+            title="Buka repositori GitHub untuk melihat pembaruan aplikasi"
+          >
+            <ExternalLink class="h-4 w-4 shrink-0 text-sky-500 dark:text-sky-400" />
+            <span v-if="!uiStore.isLeftSidebarCollapsed" class="truncate font-medium">Update Aplikasi</span>
+          </button>
+        </div>
       </div>
 
       <!-- Footer Sidebar: Switch Tema & Info Status -->
@@ -426,6 +519,9 @@ onUnmounted(() => {
       <BreadcrumbHeader
         :notification-message="exportStatusMessage"
         @save="handleSaveFile"
+        @refresh="handleRefresh"
+        @open-file="handleOpenFile"
+        @new-project="uiStore.setWizardOpen(true)"
         @clear-notification="exportStatusMessage = null"
       />
 
@@ -455,7 +551,12 @@ onUnmounted(() => {
             <KelasTab />
           </div>
 
-          <!-- Tab 5: Pengaturan -->
+          <!-- Tab 5: Sesi KBM & Waktu Belajar -->
+          <div v-else-if="uiStore.activeTab === 'sesi'" key="sesi" class="h-full w-full overflow-hidden">
+            <SesiKbmTab />
+          </div>
+
+          <!-- Tab 6: Pengaturan -->
           <div v-else-if="uiStore.activeTab === 'pengaturan'" key="pengaturan" class="h-full w-full overflow-hidden">
             <PengaturanTab @open-wizard="uiStore.setWizardOpen(true)" />
           </div>
@@ -463,7 +564,7 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Modal Wizard Onboarding Setup Sekolah Baru -->
+    <!-- Panduan penyiapan lembaga baru -->
     <SchoolSetupWizard
       v-model="uiStore.isWizardOpen"
       @completed="uiStore.setActiveTab('jadwal')"

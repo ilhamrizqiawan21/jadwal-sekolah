@@ -12,11 +12,13 @@ import {
   Sparkles
 } from 'lucide-vue-next'
 import { TingkatTingkat, SemesterTipe } from '@core/types'
+import { PresetWaktuOptions } from '@core/default-presets'
 import {
   WizardProfileData,
   validateProfileStep,
   buildProjectFromWizard
 } from '@core/wizard-builder'
+import { shouldConfirmProjectReplacement } from '@core/project-safety'
 import { useScheduleStore } from '../../stores/scheduleStore'
 
 const props = defineProps<{
@@ -42,12 +44,38 @@ const profile = ref<WizardProfileData>({
   kota_tanggal: 'Kota Baru, 13 Juli 2026',
   kepala_sekolah_nama: '',
   kepala_sekolah_nip: '',
+  jabatan_pimpinan: 'Pimpinan Lembaga',
+  jenis_lembaga: 'Lembaga Pendidikan',
+  jenjang_custom: '',
   kop_base64: '',
   ttd_base64: ''
 })
 
 const polaHari = ref<5 | 6>(5)
 const presetJenjang = ref<TingkatTingkat>('SMP')
+const customWaktu = ref({
+  durasiJP: 40,
+  blokPerHari: 4,
+  jamMulai: '07:00',
+  jedaSetelahBlok: '2',
+  tambahkanTutupJumat: false
+})
+
+function getCustomWaktuOptions(): PresetWaktuOptions {
+  const [jam, menit] = customWaktu.value.jamMulai.split(':').map(Number)
+  const jedaSetelahBlok = customWaktu.value.jedaSetelahBlok
+    .split(',')
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item) && item > 0)
+
+  return {
+    durasiJP: customWaktu.value.durasiJP,
+    blokPerHari: customWaktu.value.blokPerHari,
+    jamMulaiMenit: (Number.isFinite(jam) ? jam : 7) * 60 + (Number.isFinite(menit) ? menit : 0),
+    jedaSetelahBlok,
+    tambahkanTutupJumat: customWaktu.value.tambahkanTutupJumat
+  }
+}
 
 // Sinkronkan presetJenjang saat jenjang di step 1 berubah
 function onJenjangChange(): void {
@@ -79,6 +107,16 @@ function nextStep(): void {
     }
   }
 
+  if (currentStep.value === 3 && presetJenjang.value === 'LAINNYA') {
+    if (customWaktu.value.durasiJP < 1 || customWaktu.value.durasiJP > 180) {
+      validationErrors.value.push('Durasi JP harus berada di antara 1 sampai 180 menit')
+    }
+    if (customWaktu.value.blokPerHari < 1 || customWaktu.value.blokPerHari > 12) {
+      validationErrors.value.push('Jumlah blok per hari harus berada di antara 1 sampai 12')
+    }
+    if (validationErrors.value.length > 0) return
+  }
+
   if (currentStep.value < 4) {
     currentStep.value++
   }
@@ -92,10 +130,16 @@ function prevStep(): void {
 }
 
 function finishWizard(): void {
+  if (
+    shouldConfirmProjectReplacement(scheduleStore.proyek, scheduleStore.filePath, scheduleStore.dirty) &&
+    !window.confirm('Panduan penyiapan akan mengganti proyek yang sedang dibuka. Data jadwal lama tidak ikut dibawa. Lanjutkan?')
+  ) return
+
   const newProject = buildProjectFromWizard(
     profile.value,
     polaHari.value,
-    presetJenjang.value
+    presetJenjang.value,
+    presetJenjang.value === 'LAINNYA' ? getCustomWaktuOptions() : {}
   )
   scheduleStore.loadProjectData(newProject, null)
   emit('completed')
@@ -107,7 +151,7 @@ function closeModal(): void {
 }
 
 const steps = [
-  { id: 1, title: 'Profil Sekolah', icon: School },
+  { id: 1, title: 'Profil Lembaga', icon: School },
   { id: 2, title: 'Pola Hari', icon: Calendar },
   { id: 3, title: 'Struktur Jam', icon: Clock },
   { id: 4, title: 'Konfirmasi', icon: CheckCircle2 }
@@ -118,11 +162,16 @@ const steps = [
   <div
     v-if="modelValue"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="setup-wizard-title"
+    tabindex="-1"
+    @keydown.esc="closeModal"
   >
     <div
       class="flex max-h-[90vh] h-[620px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
     >
-      <!-- Header Wizard -->
+      <!-- Header panduan penyiapan -->
       <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-950/80">
         <div class="flex items-center space-x-3">
           <div
@@ -131,13 +180,15 @@ const steps = [
             <Sparkles class="h-5 w-5" />
           </div>
           <div>
-            <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">Setup Proyek Jadwal Baru</h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Konfigurasi otomatis profil, pola hari, dan alokasi waktu KBM</p>
+            <h2 id="setup-wizard-title" class="text-base font-semibold text-slate-900 dark:text-slate-100">Penyiapan Proyek Jadwal Baru</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Atur profil lembaga, pola hari, dan waktu belajar</p>
           </div>
         </div>
         <button
+          type="button"
           @click="closeModal"
           class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+          aria-label="Tutup panduan penyiapan"
         >
           <X class="h-5 w-5" />
         </button>
@@ -194,15 +245,15 @@ const steps = [
           </ul>
         </div>
 
-        <!-- Step 1: Profil Sekolah -->
+        <!-- Step 1: Profil Lembaga -->
         <div v-if="currentStep === 1" class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div class="col-span-2">
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Sekolah / Madrasah *</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Lembaga / Institusi *</label>
               <input
                 v-model="profile.nama_sekolah"
                 type="text"
-                placeholder="Contoh: SMP Negeri 1 Merdeka atau MTs Nurul Huda"
+                placeholder="Contoh: SMP Negeri 1 Merdeka, PKBM Harapan, atau Pesantren ..."
                 class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
               />
             </div>
@@ -214,11 +265,29 @@ const steps = [
                 @change="onJenjangChange"
                 class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
-                <option value="SD">SD / MI (Sekolah Dasar / Madrasah Ibtidaiyah)</option>
-                <option value="SMP">SMP / MTs (Sekolah Menengah Pertama)</option>
-                <option value="SMA">SMA / MA (Sekolah Menengah Atas)</option>
+                <option value="PAUD">PAUD</option>
+                <option value="TK">TK / RA</option>
+                <option value="SD">SD</option>
+                <option value="MI">MI</option>
+                <option value="SMP">SMP</option>
+                <option value="MTs">MTs</option>
+                <option value="SMA">SMA</option>
+                <option value="MA">MA</option>
                 <option value="SMK">SMK (Sekolah Menengah Kejuruan)</option>
+                <option value="PKBM">PKBM / Pendidikan Kesetaraan</option>
+                <option value="PESANTREN">Pesantren / Asrama</option>
+                <option value="LAINNYA">Lainnya</option>
               </select>
+            </div>
+
+            <div v-if="profile.jenjang === 'LAINNYA'">
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Jenjang / Program</label>
+              <input
+                v-model="profile.jenjang_custom"
+                type="text"
+                placeholder="Contoh: Kursus, Akademi, atau Program Internal"
+                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
+              />
             </div>
 
             <div>
@@ -272,7 +341,7 @@ const steps = [
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Kepala Sekolah</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penanggung Jawab / Pimpinan</label>
               <input
                 v-model="profile.kepala_sekolah_nama"
                 type="text"
@@ -282,18 +351,28 @@ const steps = [
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">NIP Kepala Sekolah</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nomor Identitas Pimpinan</label>
               <input
                 v-model="profile.kepala_sekolah_nip"
                 type="text"
-                placeholder="19xxxxxxxxxxxxxx (opsional / jika ada)"
+                placeholder="Opsional / jika ada"
                 class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Jabatan Penanggung Jawab</label>
+              <input
+                v-model="profile.jabatan_pimpinan"
+                type="text"
+                placeholder="Misalnya: Kepala Lembaga, Direktur, atau Pengasuh"
+                class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
               />
             </div>
 
             <!-- Upload Logo/Kop & TTD Opsional -->
             <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/60">
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kop / Logo Sekolah (Opsional)</label>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kop / Logo Lembaga (Opsional)</label>
               <input
                 type="file"
                 accept="image/*"
@@ -319,7 +398,7 @@ const steps = [
         <!-- Step 2: Pola Hari Belajar -->
         <div v-if="currentStep === 2" class="space-y-4">
           <div class="text-sm text-slate-600 dark:text-slate-300 mb-2">
-            Pilih sistem hari belajar mingguan yang berlaku di sekolah Anda:
+            Pilih sistem hari belajar mingguan yang berlaku di lembaga Anda:
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -347,7 +426,7 @@ const steps = [
                 </span>
               </div>
               <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                Senin sampai dengan Jumat. Cocok untuk sekolah pelaksana Kurikulum Merdeka atau instansi negeri 5 hari kerja.
+                Senin sampai dengan Jumat. Cocok untuk lembaga dengan pola belajar 5 hari kerja.
               </p>
               <div class="flex flex-wrap gap-1.5">
                 <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Senin</span>
@@ -382,7 +461,7 @@ const steps = [
                 </span>
               </div>
               <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                Senin sampai dengan Sabtu. Pilihan standar madrasah (MI/MTs/MA) dan sekolah swasta atau boarding school.
+                Senin sampai dengan Sabtu. Cocok untuk madrasah, lembaga swasta, atau program berasrama.
               </p>
               <div class="flex flex-wrap gap-1.5">
                 <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Senin</span>
@@ -408,7 +487,8 @@ const steps = [
                 { id: 'SD', title: 'SD / MI', durasi: '35 Menit / JP', jam: '07:00 - 12:45', desc: 'Maks 7-8 JP per hari dengan 2x istirahat pendek' },
                 { id: 'SMP', title: 'SMP / MTs', durasi: '40 Menit / JP', jam: '07:00 - 14:15', desc: 'Maks 9 JP per hari dengan istirahat & istirahat siang' },
                 { id: 'SMA', title: 'SMA / MA', durasi: '45 Menit / JP', jam: '07:00 - 15:30', desc: 'Maks 10 JP per hari dengan istirahat dzuhur panjang' },
-                { id: 'SMK', title: 'SMK', durasi: '45 Menit / JP', jam: '07:00 - 16:00', desc: 'Maks 10-11 JP per hari disesuaikan blok praktikum bengkel' }
+                { id: 'SMK', title: 'SMK', durasi: '45 Menit / JP', jam: '07:00 - 16:00', desc: 'Maks 10-11 JP per hari disesuaikan blok praktikum bengkel' },
+                { id: 'LAINNYA', title: 'Kustom', durasi: 'Atur sendiri', jam: 'Sesuai kebutuhan', desc: 'Untuk lembaga, program, atau pola waktu yang tidak mengikuti preset standar' }
               ]"
               :key="item.id"
               @click="presetJenjang = item.id as TingkatTingkat"
@@ -429,8 +509,30 @@ const steps = [
               <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.desc }}</p>
             </div>
           </div>
+          <div v-if="presetJenjang === 'LAINNYA'" class="grid grid-cols-2 gap-3 rounded-xl border border-emerald-500/30 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Durasi 1 JP (menit)</label>
+              <input v-model.number="customWaktu.durasiJP" type="number" min="1" max="180" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Blok KBM per hari</label>
+              <input v-model.number="customWaktu.blokPerHari" type="number" min="1" max="12" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Jam mulai</label>
+              <input v-model="customWaktu.jamMulai" type="time" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Jeda setelah blok ke-</label>
+              <input v-model="customWaktu.jedaSetelahBlok" type="text" placeholder="2,4" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+            </div>
+            <label class="col-span-2 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+              <input v-model="customWaktu.tambahkanTutupJumat" type="checkbox" class="rounded border-slate-300 text-emerald-600" />
+              Tambahkan slot penutup Jumat jika tidak bertumpuk
+            </label>
+          </div>
           <p class="text-xs text-slate-500 dark:text-slate-400 italic mt-2">
-            * Catatan: Anda tetap dapat mengubah slot waktu, durasi, dan nama jam secara manual kapan saja di tab Pengaturan Waktu.
+            * Catatan: Anda tetap dapat mengubah slot waktu, durasi, dan nama jam secara manual kapan saja di menu Sesi KBM.
           </p>
         </div>
 
@@ -442,7 +544,7 @@ const steps = [
             </h3>
 
             <div class="grid grid-cols-2 gap-y-2 text-xs">
-              <div class="text-slate-500 dark:text-slate-400">Nama Sekolah:</div>
+              <div class="text-slate-500 dark:text-slate-400">Nama Lembaga:</div>
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ profile.nama_sekolah }}</div>
 
               <div class="text-slate-500 dark:text-slate-400">Jenjang & Preset:</div>
@@ -454,7 +556,7 @@ const steps = [
               <div class="text-slate-500 dark:text-slate-400">Pola Hari:</div>
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ polaHari }} Hari Kerja</div>
 
-              <div class="text-slate-500 dark:text-slate-400">Kepala Sekolah:</div>
+              <div class="text-slate-500 dark:text-slate-400">Penanggung Jawab:</div>
               <div class="font-medium text-slate-900 dark:text-slate-100">
                 {{ profile.kepala_sekolah_nama || 'Belum diisi' }}
                 <span v-if="profile.kepala_sekolah_nip" class="text-slate-500 dark:text-slate-400"> (NIP: {{ profile.kepala_sekolah_nip }})</span>

@@ -2,16 +2,18 @@
  * @see https://www.electron.build/configuration/configuration
  */
 {
-  "appId": "com.jadwalsekolah.app",
-  "productName": "Jadwal Sekolah",
+  "appId": "com.jadwalpendidikan.app",
+  "productName": "Jadwal Pendidikan",
   "directories": {
-    "buildResources": "build"
+    "buildResources": "build",
+    "output": "release"
   },
   "files": [
     "out/**/*"
   ],
   "win": {
-    "executableName": "JadwalSekolah",
+    "executableName": "JadwalPendidikan",
+    "signAndEditExecutable": false,
     "target": [
       {
         "target": "nsis",
@@ -27,6 +29,9 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
-    "createStartMenuShortcut": true
+    "createStartMenuShortcut": true,
+    "shortcutName": "Jadwal Pendidikan",
+    "uninstallDisplayName": "Jadwal Pendidikan",
+    "installerLanguages": ["id", "en"]
   }
 }

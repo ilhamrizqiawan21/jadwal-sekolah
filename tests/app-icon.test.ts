@@ -36,10 +36,10 @@ describe('Ikon Resmi Jadwal Sekolah (App Icon Utility)', () => {
   })
 
   it('memformat judul jendela secara adaptif dengan formatWindowTitle() riil', () => {
-    expect(formatWindowTitle('')).toBe('Jadwal Sekolah')
-    expect(formatWindowTitle('Sekolah Baru')).toBe('Jadwal Sekolah')
-    expect(formatWindowTitle('SMA Negeri 1 Jakarta')).toBe('SMA Negeri 1 Jakarta - Jadwal Sekolah')
-    expect(formatWindowTitle('SMK Telkom Malang')).toBe('SMK Telkom Malang - Jadwal Sekolah')
+    expect(formatWindowTitle('')).toBe('Jadwal Pendidikan')
+    expect(formatWindowTitle('Lembaga Pendidikan Baru')).toBe('Jadwal Pendidikan')
+    expect(formatWindowTitle('SMA Negeri 1 Jakarta')).toBe('SMA Negeri 1 Jakarta - Jadwal Pendidikan')
+    expect(formatWindowTitle('SMK Telkom Malang')).toBe('SMK Telkom Malang - Jadwal Pendidikan')
   })
 })
 

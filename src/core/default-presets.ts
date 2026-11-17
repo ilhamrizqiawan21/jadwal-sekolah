@@ -9,15 +9,29 @@ function formatJam(menitSejakTengahMalam: number): string {
   return `${h.toString().padStart(2, '0')}.${m.toString().padStart(2, '0')}`
 }
 
+export interface PresetWaktuOptions {
+  durasiJP?: number
+  blokPerHari?: number
+  jpPerSesi?: 1 | 2
+  jamMulaiMenit?: number
+  jedaSetelahBlok?: number[]
+  durasiJedaMenit?: number
+  tambahkanTutupJumat?: boolean
+}
+
 function buildHariSlots(
   hariName: string,
   durasiJP: number,
   jumlahBlokKBM: number,
   adaUpacara: boolean,
-  jedaSetelahBlok: number[] = [2]
+  jedaSetelahBlok: number[] = [2],
+  jamMulaiMenit = 7 * 60,
+  durasiJedaMenit = 20,
+  tambahkanTutupJumat = true,
+  jpPerSesi: 1 | 2 = 2
 ): SlotJam[] {
   const slots: SlotJam[] = []
-  let menit = 7 * 60 // 07:00
+  let menit = jamMulaiMenit
 
   if (adaUpacara) {
     const end = menit + 40
@@ -34,28 +48,28 @@ function buildHariSlots(
 
   let currentJP = 1
   for (let b = 1; b <= jumlahBlokKBM; b++) {
-    // 1 Blok = 2 JP
-    const jp1Start = menit
-    const jp1End = jp1Start + durasiJP
-    const jp2Start = jp1End
-    const jp2End = jp2Start + durasiJP
-    menit = jp2End
+    const waktu: string[] = []
+    const jp: number[] = []
+    for (let sesiJp = 0; sesiJp < jpPerSesi; sesiJp++) {
+      const jpStart = menit
+      const jpEnd = jpStart + durasiJP
+      waktu.push(`${formatJam(jpStart)}-${formatJam(jpEnd)}`)
+      jp.push(currentJP)
+      currentJP += 1
+      menit = jpEnd
+    }
 
     slots.push({
       id: `B${b}`,
       tipe: 'kbm',
       label: '',
-      waktu: [
-        `${formatJam(jp1Start)}-${formatJam(jp1End)}`,
-        `${formatJam(jp2Start)}-${formatJam(jp2End)}`
-      ],
-      jp: [currentJP, currentJP + 1]
+      waktu,
+      jp
     })
-    currentJP += 2
 
     // Tambahkan istirahat jika di jadwal jeda
     if (jedaSetelahBlok.includes(b)) {
-      const jedaEnd = menit + 20
+      const jedaEnd = menit + durasiJedaMenit
       slots.push({
         id: `JD${b}`,
         tipe: 'jeda',
@@ -68,7 +82,7 @@ function buildHariSlots(
   }
 
   // Khusus Jumat: jam tutup setelah sholat jumat jika lewat jam 11
-  if (hariName === 'Jumat') {
+  if (hariName === 'Jumat' && tambahkanTutupJumat && menit <= 11 * 60 + 45) {
     slots.push({
       id: 'TUTUP',
       tipe: 'tutup',
@@ -83,17 +97,29 @@ function buildHariSlots(
 
 export function getPresetStrukturWaktu(
   jenjang: TingkatTingkat,
-  polaHari: 5 | 6 = 5
+  polaHari: 5 | 6 = 5,
+  options: PresetWaktuOptions = {}
 ): StrukturWaktu {
   let durasi = 40
   let blokPerHari = 4 // 8 JP
-  if (jenjang === 'SD') {
+  if (jenjang === 'PAUD' || jenjang === 'TK') {
+    durasi = 30
+    blokPerHari = 4
+  } else if (jenjang === 'SD' || jenjang === 'MI') {
     durasi = 35
     blokPerHari = 3 // 6 JP
-  } else if (jenjang === 'SMA' || jenjang === 'SMK') {
+  } else if (jenjang === 'SMA' || jenjang === 'MA' || jenjang === 'SMK') {
     durasi = 45
     blokPerHari = 5 // 10 JP
   }
+
+  durasi = Math.max(1, Math.round(options.durasiJP ?? durasi))
+  blokPerHari = Math.max(1, Math.round(options.blokPerHari ?? blokPerHari))
+  const jamMulaiMenit = Math.max(0, Math.round(options.jamMulaiMenit ?? 7 * 60))
+  const jedaSetelahBlok = options.jedaSetelahBlok ?? [2]
+  const durasiJedaMenit = Math.max(1, Math.round(options.durasiJedaMenit ?? 20))
+  const tambahkanTutupJumat = options.tambahkanTutupJumat ?? true
+  const jpPerSesi: 1 | 2 = options.jpPerSesi === 1 ? 1 : 2
 
   const hariList = polaHari === 6 ? HARI_6 : HARI_5
   const hariRecord: Record<string, HariKBM> = {}
@@ -106,13 +132,24 @@ export function getPresetStrukturWaktu(
     hariRecord[h] = {
       aktif: true,
       judul: h.toUpperCase(),
-      slots: buildHariSlots(h, durasi, blok, isSenin, [2])
+      slots: buildHariSlots(
+        h,
+        durasi,
+        blok,
+        isSenin,
+        jedaSetelahBlok,
+        jamMulaiMenit,
+        durasiJedaMenit,
+        tambahkanTutupJumat,
+        jpPerSesi
+      )
     }
   }
 
   return {
     pola_hari: polaHari,
     durasi_jp_menit: durasi,
+    jp_per_sesi: jpPerSesi,
     hari: hariRecord
   }
 }

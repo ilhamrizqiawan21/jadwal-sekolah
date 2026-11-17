@@ -10,6 +10,9 @@ import {
   Users
 } from 'lucide-vue-next'
 import { Penugasan } from '@core/types'
+import { getGuruCode } from '@core/guru-codes'
+import { getTerpasangTotal as countTerpasangTotal } from '@core/load-calculator'
+import { validateRequiredField, validateTeamTeaching } from '@core/ui-validation'
 import { useScheduleStore } from '../../stores/scheduleStore'
 
 const store = useScheduleStore()
@@ -65,12 +68,11 @@ function getTotalBeban(penugasan: Penugasan): number {
 }
 
 function getTerpasangTotal(penugasan: Penugasan): number {
-  let count = 0
-  for (const kelas of kelasList.value) {
-    const key = `${penugasan.kode}:${kelas.id}`
-    count += store.terpasang[key] || 0
-  }
-  return count
+  return countTerpasangTotal(
+    store.terpasang,
+    penugasan.kode,
+    kelasList.value.map((kelas) => kelas.id)
+  )
 }
 
 function openAddModal(): void {
@@ -116,12 +118,22 @@ function editPenugasan(a: Penugasan): void {
 }
 
 function savePenugasan(): void {
-  if (!formPenugasan.value.kode.trim() || !formPenugasan.value.mapel.trim()) return
+  const kodeError = validateRequiredField(formPenugasan.value.kode, 'Kode mapel')
+  if (kodeError) {
+    alert(kodeError)
+    return
+  }
+  const mapelError = validateRequiredField(formPenugasan.value.mapel, 'Mata pelajaran')
+  if (mapelError) {
+    alert(mapelError)
+    return
+  }
 
   // Validasi pemilihan guru pengampu
   if (formPenugasan.value.is_team_teaching) {
-    if (!formPenugasan.value.guru_ids || formPenugasan.value.guru_ids.length === 0) {
-      alert('Harap centang minimal 1 guru untuk penugasan Team Teaching.')
+    const teamError = validateTeamTeaching(formPenugasan.value.guru_ids || [])
+    if (teamError) {
+      alert(teamError)
       return
     }
   } else {
@@ -171,13 +183,13 @@ function removePenugasan(penugasanId: string): void {
 
 function getGuruDisplay(a: Penugasan): string {
   if (a.guru_ids && a.guru_ids.length > 1) {
-    const names = a.guru_ids
-      .map((gid: string) => guruList.value.find((g) => g.id === gid)?.nama || gid)
-      .join(' & ')
-    return `[Team Teaching] ${names}`
+    const gurus = a.guru_ids.map((gid: string) => guruList.value.find((g) => g.id === gid))
+    const codes = gurus.map((guru) => guru ? getGuruCode(guru) : '').filter(Boolean).join(' & ')
+    const names = gurus.map((guru, index) => guru?.nama || a.guru_ids?.[index] || '').filter(Boolean).join(' & ')
+    return `[${codes}] [Team Teaching] ${names}`
   }
   const single = guruList.value.find((g) => g.id === a.guru_id)
-  return single ? single.nama : 'Belum ditentukan'
+  return single ? `[${getGuruCode(single)}] ${single.nama}` : 'Belum ditentukan'
 }
 </script>
 
@@ -193,6 +205,7 @@ function getGuruDisplay(a: Penugasan): string {
       </div>
 
       <button
+        type="button"
         @click="openAddModal"
         class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
       >
@@ -205,11 +218,14 @@ function getGuruDisplay(a: Penugasan): string {
     <div
       v-if="isEditing"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="penugasan-dialog-title"
     >
       <div class="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
         <div class="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
-          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
-            {{ formPenugasan.id.startsWith('penugasan:') ? 'Tambah Penugasan Guru' : 'Edit Penugasan Guru' }}
+          <h3 id="penugasan-dialog-title" class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            {{ store.proyek.master.penugasan.some(p => p.id === formPenugasan.id) ? 'Edit Penugasan Guru' : 'Tambah Penugasan Guru' }}
           </h3>
           <p class="text-xs text-slate-500 dark:text-slate-400">Tentukan kode, mata pelajaran, dan distribusi JP per kelas</p>
         </div>
@@ -217,18 +233,21 @@ function getGuruDisplay(a: Penugasan): string {
         <div class="flex-1 overflow-y-auto p-6 space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Unik Penugasan *</label>
+              <label for="penugasan-code" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Mata Pelajaran *</label>
               <input
+                id="penugasan-code"
                 v-model="formPenugasan.kode"
                 type="text"
                 placeholder="Contoh: 1, 2A, MAT-1, PJOK"
                 class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
+              <p class="mt-1 text-[10px] text-slate-400">Kode ini tampil di kisi jadwal. Sistem mengisinya otomatis saat menambah data.</p>
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Mata Pelajaran *</label>
+              <label for="penugasan-subject" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Mata Pelajaran *</label>
               <input
+                id="penugasan-subject"
                 v-model="formPenugasan.mapel"
                 type="text"
                 placeholder="Contoh: Matematika, Bahasa Inggris"
@@ -244,8 +263,9 @@ function getGuruDisplay(a: Penugasan): string {
                 <Users class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <span class="text-xs font-semibold text-slate-800 dark:text-slate-200">Mode Team Teaching</span>
               </div>
-              <label class="relative inline-flex items-center cursor-pointer">
+              <label for="team-teaching-toggle" class="relative inline-flex items-center cursor-pointer">
                 <input
+                  id="team-teaching-toggle"
                   type="checkbox"
                   v-model="formPenugasan.is_team_teaching"
                   class="sr-only peer"
@@ -256,8 +276,9 @@ function getGuruDisplay(a: Penugasan): string {
 
             <!-- Single Guru -->
             <div v-if="!formPenugasan.is_team_teaching">
-              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Guru Pengampu</label>
+              <label for="penugasan-teacher" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Guru Pengampu</label>
               <select
+                id="penugasan-teacher"
                 v-model="formPenugasan.guru_id"
                 class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
@@ -290,9 +311,9 @@ function getGuruDisplay(a: Penugasan): string {
 
           <!-- Matriks Distribusi JP Per Kelas -->
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+              <span class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
               Alokasi JP per Kelas (Isi jam pelajaran per minggu)
-            </label>
+              </span>
             <div class="grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/60">
               <div
                 v-for="k in kelasList"
@@ -302,11 +323,13 @@ function getGuruDisplay(a: Penugasan): string {
                 <span class="font-medium text-slate-800 dark:text-slate-300">{{ k.nama }}</span>
                 <div class="flex items-center space-x-1">
                   <input
+                    :id="`penugasan-load-${k.id}`"
                     type="number"
                     min="0"
                     max="10"
                     v-model.number="formPenugasan.beban[k.id]"
                     class="h-7 w-12 rounded border border-slate-300 bg-white text-center text-xs text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    :aria-label="`Alokasi JP ${k.nama}`"
                   />
                   <span class="text-[10px] text-slate-500">JP</span>
                 </div>
@@ -317,12 +340,14 @@ function getGuruDisplay(a: Penugasan): string {
 
         <div class="flex items-center justify-end space-x-2 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
           <button
+            type="button"
             @click="isEditing = false"
             class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
             Batal
           </button>
           <button
+            type="button"
             @click="savePenugasan"
             class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
           >
@@ -342,7 +367,7 @@ function getGuruDisplay(a: Penugasan): string {
             <th class="px-4 py-3.5">Mata Pelajaran</th>
             <th class="px-4 py-3.5">Guru Pengampu</th>
             <th class="px-4 py-3.5 text-center">Target JP</th>
-            <th class="px-4 py-3.5 text-center">Terplot JP</th>
+            <th class="px-4 py-3.5 text-center">Dialokasikan</th>
             <th class="px-4 py-3.5">Status Alokasi</th>
             <th class="w-24 px-4 py-3.5 text-right">Aksi</th>
           </tr>
@@ -430,16 +455,22 @@ function getGuruDisplay(a: Penugasan): string {
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end space-x-1">
                 <button
+                  type="button"
                   @click="editPenugasan(a)"
                   class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                  :aria-label="`Edit penugasan ${a.mapel}`"
+                  title="Edit penugasan"
                 >
-                  <Edit2 class="h-3.5 w-3.5" />
+                  <Edit2 class="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
                 <button
+                  type="button"
                   @click="removePenugasan(a.id)"
                   class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition-colors"
+                  :aria-label="`Hapus penugasan ${a.mapel}`"
+                  title="Hapus penugasan"
                 >
-                  <Trash2 class="h-3.5 w-3.5" />
+                  <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
             </td>

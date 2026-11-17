@@ -3,6 +3,8 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
 import { cleanTempFiles } from './storage'
+import { isSafeExternalUrl } from './security'
+import { APP_NAME } from '../core/app-meta'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -27,10 +29,10 @@ if (!gotTheLock) {
       minHeight: 560,
       show: false,
       autoHideMenuBar: true,
-      title: 'Jadwal Sekolah',
+      title: APP_NAME,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
+        sandbox: true,
         contextIsolation: true,
         nodeIntegration: false
       }
@@ -41,9 +43,11 @@ if (!gotTheLock) {
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
-      shell.openExternal(details.url)
+      if (isSafeExternalUrl(details.url)) void shell.openExternal(details.url).catch(console.error)
       return { action: 'deny' }
     })
+
+    mainWindow.webContents.on('will-navigate', (event) => event.preventDefault())
 
     // HMR for renderer base on electron-vite cli.
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -54,13 +58,13 @@ if (!gotTheLock) {
   }
 
   app.whenReady().then(async () => {
-    electronApp.setAppUserModelId('com.jadwalsekolah.app')
+    electronApp.setAppUserModelId('com.jadwalpendidikan.app')
 
     // Register all strictly-typed IPC handlers
     registerIpcHandlers()
 
     // Clean stale temp files in documents/app directory
-    const defaultDir = join(app.getPath('documents'), 'Jadwal Sekolah')
+    const defaultDir = join(app.getPath('documents'), APP_NAME)
     await cleanTempFiles(defaultDir)
 
     app.on('browser-window-created', (_, window) => {

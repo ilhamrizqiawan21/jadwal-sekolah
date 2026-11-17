@@ -18,7 +18,7 @@ describe('Wizard Logic Builder (src/core/wizard-builder.ts)', () => {
     }
 
     const errors = validateProfileStep(invalidProfile)
-    expect(errors).toContain('Nama sekolah wajib diisi')
+    expect(errors).toContain('Nama lembaga wajib diisi')
     expect(errors).toContain('Tahun pelajaran wajib diisi')
 
     const validProfile: WizardProfileData = {

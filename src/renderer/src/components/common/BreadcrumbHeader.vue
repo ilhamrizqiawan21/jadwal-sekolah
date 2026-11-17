@@ -7,13 +7,17 @@ import {
   Layers,
   Users,
   GraduationCap,
+  Clock,
   Settings,
   Save,
   CheckCircle2,
   AlertTriangle,
   FileText,
   Info,
-  X
+  X,
+  RefreshCw,
+  FolderOpen,
+  FilePlus2
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { useUiStore, ActiveTab } from '../../stores/uiStore'
@@ -24,6 +28,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'save'): void
+  (e: 'refresh'): void
+  (e: 'open-file'): void
+  (e: 'new-project'): void
   (e: 'clear-notification'): void
 }>()
 
@@ -57,6 +64,11 @@ const tabConfigs: Record<ActiveTab, BreadcrumbConfig> = {
     label: 'Rombongan Belajar (Kelas)',
     icon: GraduationCap
   },
+  sesi: {
+    kategori: 'Konfigurasi Jadwal',
+    label: 'Sesi KBM & Waktu Belajar',
+    icon: Clock
+  },
   pengaturan: {
     kategori: 'Konfigurasi',
     label: 'Pengaturan & Format Dokumen',
@@ -76,6 +88,12 @@ const fileName = computed(() => {
   if (!store.filePath) return 'Proyek Baru (Belum Disimpan)'
   return store.filePath.split(/[\\/]/).pop() || store.filePath
 })
+
+function openIssues(): void {
+  uiStore.setActiveTab('jadwal')
+  uiStore.setSidebarTab('issues')
+  uiStore.setRightSidebarOpen(true)
+}
 </script>
 
 <template>
@@ -84,7 +102,7 @@ const fileName = computed(() => {
   >
     <!-- Sisi Kiri: Breadcrumb Navigasi Hierarkis dengan Motion Fade -->
     <nav class="flex items-center space-x-1.5 overflow-hidden text-slate-500 dark:text-slate-400">
-      <!-- Root: Nama Aplikasi / Sekolah -->
+      <!-- Root: Nama Aplikasi / Lembaga -->
       <button
         @click="uiStore.setActiveTab('jadwal')"
         class="flex items-center space-x-1.5 rounded-md px-1.5 py-1 font-medium hover:bg-slate-100 hover:text-slate-900 transition-colors dark:hover:bg-slate-900 dark:hover:text-slate-200"
@@ -92,7 +110,7 @@ const fileName = computed(() => {
       >
         <Home class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
         <span class="font-semibold text-slate-800 dark:text-slate-200 max-w-[130px] sm:max-w-[180px] truncate">
-          {{ store.proyek.meta.nama_sekolah || 'Jadwal Sekolah' }}
+          {{ store.proyek.meta.nama_sekolah || 'Jadwal Pendidikan' }}
         </span>
       </button>
 
@@ -123,23 +141,60 @@ const fileName = computed(() => {
       <Transition name="notif-pop">
         <div
           v-if="notificationMessage"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           class="flex items-center space-x-1.5 rounded-lg border border-emerald-500/30 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-950/60 dark:text-emerald-300"
         >
           <Info class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 animate-pulse" />
           <span class="max-w-[240px] truncate">{{ notificationMessage }}</span>
           <button
+            type="button"
             @click="emit('clear-notification')"
             class="ml-1 rounded p-0.5 text-emerald-600 hover:bg-emerald-200/60 dark:text-emerald-400 dark:hover:bg-emerald-900"
             title="Tutup Notifikasi"
+            aria-label="Tutup notifikasi"
           >
             <X class="h-3 w-3" />
           </button>
         </div>
       </Transition>
 
-      <!-- 2. Status Bentrok Jadwal -->
+      <!-- 2. Aksi Proyek Utama -->
       <button
-        @click="uiStore.toggleRightSidebar"
+        type="button"
+        @click="emit('open-file')"
+        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-all"
+        title="Buka atau impor berkas proyek .jadwal"
+      >
+        <FolderOpen class="h-3.5 w-3.5 text-slate-400" />
+        <span class="hidden xl:inline">Buka</span>
+      </button>
+      <button
+        type="button"
+        @click="emit('new-project')"
+        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-all"
+        title="Buat proyek jadwal baru"
+      >
+        <FilePlus2 class="h-3.5 w-3.5 text-slate-400" />
+        <span class="hidden xl:inline">Baru</span>
+      </button>
+
+      <!-- 3. Muat Ulang Tampilan Aplikasi -->
+      <button
+        type="button"
+        @click="emit('refresh')"
+        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-all"
+        title="Muat ulang tampilan aplikasi tanpa menutup jendela (Ctrl+R)"
+      >
+        <RefreshCw class="h-3.5 w-3.5 text-slate-400" />
+        <span class="hidden xl:inline">Refresh</span>
+      </button>
+
+      <!-- 4. Status Bentrok Jadwal -->
+      <button
+        type="button"
+        @click="openIssues"
         :class="[
           'flex items-center space-x-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-all',
           errorCount > 0
@@ -147,6 +202,7 @@ const fileName = computed(() => {
             : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800'
         ]"
         :title="errorCount > 0 ? `${errorCount} bentrok ditemukan. Klik untuk buka panel rincian masalah` : 'Jadwal bebas bentrok guru'"
+        :aria-label="errorCount > 0 ? `Buka rincian ${errorCount} bentrok` : 'Jadwal bebas bentrok guru'"
       >
         <AlertTriangle v-if="errorCount > 0" class="h-3.5 w-3.5 text-rose-500 animate-bounce" />
         <CheckCircle2 v-else class="h-3.5 w-3.5 text-emerald-500" />
@@ -155,8 +211,9 @@ const fileName = computed(() => {
         </span>
       </button>
 
-      <!-- 3. Status Penyimpanan Berkas (Dirty Flag & Quick Save) -->
+      <!-- 5. Status Penyimpanan Berkas (Dirty Flag & Quick Save) -->
       <button
+        type="button"
         @click="emit('save')"
         :class="[
           'flex items-center space-x-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all shadow-xs',
@@ -165,6 +222,7 @@ const fileName = computed(() => {
             : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800'
         ]"
         :title="store.dirty ? 'Ada perubahan belum disimpan. Klik untuk Simpan (Ctrl+S)' : 'Semua perubahan telah tersimpan'"
+        :aria-label="store.dirty ? 'Simpan perubahan proyek' : 'Semua perubahan telah tersimpan'"
       >
         <span
           v-if="store.dirty"
@@ -176,7 +234,7 @@ const fileName = computed(() => {
         </span>
       </button>
 
-      <!-- 4. Nama Berkas Jadwal (Compact Pill) -->
+      <!-- 6. Nama Berkas Jadwal (Compact Pill) -->
       <div
         class="hidden lg:flex items-center space-x-1.5 rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-900 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 max-w-[160px] truncate"
         :title="store.filePath || 'Belum disimpan ke berkas fisik'"

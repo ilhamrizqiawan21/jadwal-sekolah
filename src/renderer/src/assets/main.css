@@ -10,3 +10,21 @@ html, body, #app {
   overflow: hidden;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
+
+/* Fokus keyboard harus terlihat jelas di seluruh menu, tabel, dan dialog. */
+:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+/* Hormati pengaturan Reduce Motion dari sistem operasi. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

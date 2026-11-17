@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ProyekData } from '../src/core/types'
-import { hitungBeban } from '../src/core/load-calculator'
+import { getTerpasangTotal, hitungBeban } from '../src/core/load-calculator'
 
 function createMiniProyek(): ProyekData {
   return {
@@ -48,6 +48,10 @@ function createMiniProyek(): ProyekData {
 }
 
 describe('load-calculator', () => {
+  it('menghitung total terplot tanpa membedakan huruf besar kecil kode mapel', () => {
+    expect(getTerpasangTotal({ 'MAT:kelas-1': 2 }, 'mat', ['kelas-1'])).toBe(2)
+  })
+
   it('mendeteksi beban kurang (INFO) jika JP belum lengkap terpasang', () => {
     const p = createMiniProyek()
     // Kuota target 2 JP, terpasang 0 JP

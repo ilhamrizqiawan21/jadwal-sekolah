@@ -136,6 +136,13 @@ describe('Storage & Persistence Module (src/main/storage.ts)', () => {
     await expect(loadProject(filePath)).rejects.toThrow(/versi aplikasi yang lebih baru/i)
   })
 
+  it('menolak berkas v2 yang tidak memiliki struktur wajib', async () => {
+    const filePath = path.join(tempDir, 'jadwal-rusak.jadwal')
+    fs.writeFileSync(filePath, JSON.stringify({ format_version: CURRENT_FORMAT_VERSION }), 'utf-8')
+
+    await expect(loadProject(filePath)).rejects.toThrow(/struktur berkas|tidak valid/i)
+  })
+
   it('mampu memigrasikan data versi lama (format_version 1 dari jadwal-mts) ke format_version 2', async () => {
     const filePath = path.join(tempDir, 'jadwal-v1-legacy.jadwal')
     const legacyV1Data = {
@@ -167,8 +174,10 @@ describe('Storage & Persistence Module (src/main/storage.ts)', () => {
   })
 
   it('membersihkan file temporary (.tmp) basi saat startup', async () => {
-    const staleTmp1 = path.join(tempDir, 'stale1.tmp')
-    const staleTmp2 = path.join(tempDir, 'stale2.tmp')
+    const unrelated = path.join(tempDir, 'aplikasi-lain.tmp')
+    fs.writeFileSync(unrelated, 'jangan hapus')
+    const staleTmp1 = path.join(tempDir, '.stale1.jadwal.123.abc.tmp')
+    const staleTmp2 = path.join(tempDir, '.stale2.jadwal.123.def.tmp')
     const normalFile = path.join(tempDir, 'data.jadwal')
 
     fs.writeFileSync(staleTmp1, 'dummy')
@@ -179,7 +188,31 @@ describe('Storage & Persistence Module (src/main/storage.ts)', () => {
 
     const remaining = fs.readdirSync(tempDir)
     expect(remaining).toContain('data.jadwal')
-    expect(remaining).not.toContain('stale1.tmp')
-    expect(remaining).not.toContain('stale2.tmp')
+    expect(fs.readFileSync(unrelated, 'utf8')).toBe('jangan hapus')
+    expect(remaining).not.toContain('.stale1.jadwal.123.abc.tmp')
+    expect(remaining).not.toContain('.stale2.jadwal.123.def.tmp')
+  })
+
+  it('menolak sel rusak saat memuat dan menyimpan tanpa menimpa berkas', async () => {
+    const filePath = path.join(tempDir, 'invalid.jadwal')
+    const data = createSampleProyek()
+    await saveProject(filePath, data)
+    const original = fs.readFileSync(filePath, 'utf8')
+    const invalid = { ...data, jadwal: { Senin: { B1: { c1: 42 } } } }
+    await expect(saveProject(filePath, invalid as unknown as ProyekData)).rejects.toThrow(/rusak/)
+    expect(fs.readFileSync(filePath, 'utf8')).toBe(original)
+    fs.writeFileSync(filePath, JSON.stringify(invalid))
+    await expect(loadProject(filePath)).rejects.toThrow(/rusak/)
+  })
+
+  it('membatalkan overwrite ketika backup gagal', async () => {
+    const filePath = path.join(tempDir, 'backup-error.jadwal')
+    await saveProject(filePath, createSampleProyek())
+    const original = fs.readFileSync(filePath, 'utf8')
+    const mock = vi.spyOn(fs.promises, 'copyFile').mockRejectedValueOnce(new Error('disk full'))
+    try {
+      await expect(saveProject(filePath, createSampleProyek())).rejects.toThrow(/cadangan/)
+      expect(fs.readFileSync(filePath, 'utf8')).toBe(original)
+    } finally { mock.mockRestore() }
   })
 })

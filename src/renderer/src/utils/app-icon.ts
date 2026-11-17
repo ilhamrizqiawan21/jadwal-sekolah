@@ -1,7 +1,9 @@
 /**
- * Generator Ikon Resmi Aplikasi Jadwal Sekolah (128x128 PNG)
+ * Generator ikon netral aplikasi Jadwal Pendidikan (128x128 PNG).
  * 100% offline via HTML5 Canvas tanpa dependensi eksternal.
  */
+import { APP_NAME, DEFAULT_PROJECT_NAME } from '../../../core/app-meta'
+
 let cachedDefaultAppIcon: string | null = null
 
 const DEFAULT_APP_ICON_SVG =
@@ -166,9 +168,9 @@ export function getDefaultAppIcon(): string {
 
 export function formatWindowTitle(namaSekolah?: string): string {
   const trimmed = namaSekolah?.trim()
-  if (trimmed && trimmed !== 'Sekolah Baru') {
-    return `${trimmed} - Jadwal Sekolah`
+  if (trimmed && trimmed !== DEFAULT_PROJECT_NAME) {
+    return `${trimmed} - ${APP_NAME}`
   }
-  return 'Jadwal Sekolah'
+  return APP_NAME
 }
 

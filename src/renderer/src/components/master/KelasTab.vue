@@ -11,6 +11,7 @@ import {
   GraduationCap
 } from 'lucide-vue-next'
 import { Kelas } from '@core/types'
+import { validateRequiredField } from '@core/ui-validation'
 import { useScheduleStore } from '../../stores/scheduleStore'
 
 const store = useScheduleStore()
@@ -87,7 +88,11 @@ function editKelas(k: Kelas): void {
 }
 
 function saveKelas(): void {
-  if (!formKelas.value.nama.trim()) return
+  const namaError = validateRequiredField(formKelas.value.nama, 'Nama rombel / kelas')
+  if (namaError) {
+    alert(namaError)
+    return
+  }
 
   const existingIdx = store.proyek.master.kelas.findIndex((k) => k.id === formKelas.value.id)
   if (existingIdx !== -1) {
@@ -147,6 +152,7 @@ function getGuruName(guruId: string | null | undefined): string {
       </div>
 
       <button
+        type="button"
         @click="openAddModal"
         class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
       >
@@ -159,17 +165,21 @@ function getGuruName(guruId: string | null | undefined): string {
     <div
       v-if="isEditing"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kelas-dialog-title"
     >
       <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">
-          {{ formKelas.id.startsWith('kelas:') ? 'Tambah Kelas Baru' : 'Edit Kelas' }}
+        <h3 id="kelas-dialog-title" class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">
+          {{ store.proyek.master.kelas.some(k => k.id === formKelas.id) ? 'Edit Kelas' : 'Tambah Kelas Baru' }}
         </h3>
         <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Lengkapi informasi rombongan belajar</p>
 
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Rombel / Kelas *</label>
+            <label for="kelas-name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Rombel / Kelas *</label>
             <input
+              id="kelas-name"
               v-model="formKelas.nama"
               type="text"
               placeholder="Contoh: 7A, X-IPA 1, XII TKJ 2"
@@ -178,8 +188,9 @@ function getGuruName(guruId: string | null | undefined): string {
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Tingkat / Grade *</label>
+            <label for="kelas-level" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Tingkat / Grade *</label>
             <input
+              id="kelas-level"
               v-model.number="formKelas.tingkat"
               type="number"
               min="1"
@@ -189,8 +200,9 @@ function getGuruName(guruId: string | null | undefined): string {
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Wali Kelas</label>
+            <label for="kelas-homeroom" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Wali Kelas</label>
             <select
+              id="kelas-homeroom"
               v-model="formKelas.wali_guru_id"
               class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
@@ -207,12 +219,14 @@ function getGuruName(guruId: string | null | undefined): string {
 
           <div class="flex items-center justify-end space-x-2 pt-2">
             <button
+              type="button"
               @click="isEditing = false"
               class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             >
               Batal
             </button>
             <button
+              type="button"
               @click="saveKelas"
               class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-900/30"
             >
@@ -233,7 +247,7 @@ function getGuruName(guruId: string | null | undefined): string {
             <th class="px-4 py-3.5">Nama Rombel</th>
             <th class="px-4 py-3.5">Tingkat</th>
             <th class="px-4 py-3.5">Wali Kelas</th>
-            <th class="px-4 py-3.5 text-center">Jam Terplot</th>
+            <th class="px-4 py-3.5 text-center">Jam Dialokasikan</th>
             <th class="w-40 px-4 py-3.5 text-right">Aksi</th>
           </tr>
         </thead>
@@ -256,19 +270,25 @@ function getGuruName(guruId: string | null | undefined): string {
             <td class="px-4 py-3 text-center">
               <div class="flex items-center justify-center space-x-1">
                 <button
+                  type="button"
                   :disabled="idx === 0"
                   @click="moveUp(idx)"
                   class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-20"
+                  :aria-label="`Naikkan ${k.nama}`"
+                  title="Naikkan urutan kelas"
                 >
-                  <ChevronUp class="h-3.5 w-3.5" />
+                  <ChevronUp class="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
                 <span class="font-mono text-slate-500 dark:text-slate-400 text-xs w-4">{{ idx + 1 }}</span>
                 <button
+                  type="button"
                   :disabled="idx === store.proyek.master.kelas.length - 1"
                   @click="moveDown(idx)"
                   class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-20"
+                  :aria-label="`Turunkan ${k.nama}`"
+                  title="Turunkan urutan kelas"
                 >
-                  <ChevronDown class="h-3.5 w-3.5" />
+                  <ChevronDown class="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
             </td>
@@ -290,7 +310,7 @@ function getGuruName(guruId: string | null | undefined): string {
               </div>
             </td>
 
-            <!-- Rekap Jam Terplot -->
+            <!-- Rekap Jam Dialokasikan -->
             <td class="px-4 py-3 text-center">
               <span
                 :class="[
@@ -309,18 +329,22 @@ function getGuruName(guruId: string | null | undefined): string {
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end space-x-1">
                 <button
+                  type="button"
                   @click="editKelas(k)"
                   class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
                   title="Edit Kelas"
+                  :aria-label="`Edit ${k.nama}`"
                 >
-                  <Edit2 class="h-3.5 w-3.5" />
+                  <Edit2 class="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
                 <button
+                  type="button"
                   @click="removeKelas(k.id)"
                   class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition-colors"
                   title="Hapus Kelas"
+                  :aria-label="`Hapus ${k.nama}`"
                 >
-                  <Trash2 class="h-3.5 w-3.5" />
+                  <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
             </td>

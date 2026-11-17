@@ -1,5 +1,15 @@
 import { ProyekData, Masalah, SelKoordinat, Penugasan } from './types'
 
+/** Mengambil total JP terpasang dengan normalisasi kode mapel. */
+export function getTerpasangTotal(
+  countMap: Record<string, number>,
+  kode: string,
+  kelasIds: string[]
+): number {
+  const codeUpper = kode.trim().toUpperCase()
+  return kelasIds.reduce((total, kelasId) => total + (countMap[`${codeUpper}:${kelasId}`] || 0), 0)
+}
+
 /**
  * Menghitung selisih beban JP per kode per kelas (target vs terpasang).
  * Selisih lebih -> ERROR

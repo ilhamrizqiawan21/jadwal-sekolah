@@ -1,20 +1,23 @@
 {
   "name": "jadwal-sekolah",
   "version": "1.0.0",
-  "description": "Aplikasi Penjadwalan Pelajaran Sekolah Native Windows",
+  "description": "Aplikasi penyusunan jadwal pendidikan untuk berbagai jenjang dan lembaga",
   "main": "./out/main/index.js",
-  "author": "Antigravity",
+  "author": "Tim Jadwal Pendidikan",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:icon": "electron tests/create-default-icon.cjs && node scripts/png-to-ico.cjs",
     "postinstall": "electron-builder install-app-deps",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && vue-tsc --noEmit -p tsconfig.node.json",
+    "prebuild:win": "npm run build:icon",
     "build:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "@vueuse/core": "^12.5.0",
+    "call-bind-apply-helpers": "^1.0.2",
     "exceljs": "^4.4.0",
     "lucide-vue-next": "^0.475.0",
     "pinia": "^2.3.1",
