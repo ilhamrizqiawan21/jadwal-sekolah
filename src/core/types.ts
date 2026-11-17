@@ -65,7 +65,7 @@ export interface HariKBM {
 }
 
 export interface StrukturWaktu {
-  pola_hari: 5 | 6
+  pola_hari: number
   durasi_jp_menit: number
   /** Jumlah Jam Pelajaran dalam satu sesi/blok KBM. Berkas lama diasumsikan 2 JP. */
   jp_per_sesi?: 1 | 2

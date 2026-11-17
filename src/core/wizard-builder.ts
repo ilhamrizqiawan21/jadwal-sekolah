@@ -35,7 +35,7 @@ export function validateProfileStep(profile: WizardProfileData): string[] {
  */
 export function buildProjectFromWizard(
   profile: WizardProfileData,
-  polaHari: 5 | 6 = 5,
+  polaHari: number = 5,
   presetJenjang?: TingkatTingkat,
   waktuOptions: PresetWaktuOptions = {}
 ): ProyekData {

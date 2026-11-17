@@ -52,7 +52,9 @@ function isProjectData(value: unknown): value is ProyekData {
   const struktur = value.struktur_waktu
   if (
     !isRecord(struktur) ||
-    ![5, 6].includes(struktur.pola_hari as number) ||
+    typeof struktur.pola_hari !== 'number' ||
+    struktur.pola_hari < 1 ||
+    struktur.pola_hari > 7 ||
     typeof struktur.durasi_jp_menit !== 'number' ||
     !isRecord(struktur.hari)
   ) {

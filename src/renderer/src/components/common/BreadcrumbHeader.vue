@@ -164,7 +164,7 @@ function openIssues(): void {
       <button
         type="button"
         @click="emit('open-file')"
-        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-all"
+        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
         title="Buka atau impor berkas proyek .jadwal"
       >
         <FolderOpen class="h-3.5 w-3.5 text-slate-400" />
@@ -173,7 +173,7 @@ function openIssues(): void {
       <button
         type="button"
         @click="emit('new-project')"
-        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-all"
+        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
         title="Buat proyek jadwal baru"
       >
         <FilePlus2 class="h-3.5 w-3.5 text-slate-400" />
@@ -184,7 +184,7 @@ function openIssues(): void {
       <button
         type="button"
         @click="emit('refresh')"
-        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-all"
+        class="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
         title="Muat ulang tampilan aplikasi tanpa menutup jendela (Ctrl+R)"
       >
         <RefreshCw class="h-3.5 w-3.5 text-slate-400" />
@@ -196,7 +196,7 @@ function openIssues(): void {
         type="button"
         @click="openIssues"
         :class="[
-          'flex items-center space-x-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-all',
+          'flex items-center space-x-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors',
           errorCount > 0
             ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/50'
             : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800'
@@ -204,7 +204,7 @@ function openIssues(): void {
         :title="errorCount > 0 ? `${errorCount} bentrok ditemukan. Klik untuk buka panel rincian masalah` : 'Jadwal bebas bentrok guru'"
         :aria-label="errorCount > 0 ? `Buka rincian ${errorCount} bentrok` : 'Jadwal bebas bentrok guru'"
       >
-        <AlertTriangle v-if="errorCount > 0" class="h-3.5 w-3.5 text-rose-500 animate-bounce" />
+        <AlertTriangle v-if="errorCount > 0" class="h-3.5 w-3.5 text-rose-500" />
         <CheckCircle2 v-else class="h-3.5 w-3.5 text-emerald-500" />
         <span class="hidden md:inline font-mono">
           {{ errorCount > 0 ? `${errorCount} Bentrok` : 'Bebas Bentrok' }}
@@ -216,7 +216,7 @@ function openIssues(): void {
         type="button"
         @click="emit('save')"
         :class="[
-          'flex items-center space-x-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all shadow-xs',
+          'flex items-center space-x-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors shadow-xs',
           store.dirty
             ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60 font-semibold'
             : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:bg-slate-800'
@@ -226,7 +226,7 @@ function openIssues(): void {
       >
         <span
           v-if="store.dirty"
-          class="h-2 w-2 rounded-full bg-amber-500 animate-ping"
+          class="h-2 w-2 rounded-full bg-amber-500"
         />
         <Save class="h-3.5 w-3.5" :class="store.dirty ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'" />
         <span class="hidden sm:inline">

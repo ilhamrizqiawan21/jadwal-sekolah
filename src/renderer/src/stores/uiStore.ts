@@ -12,6 +12,25 @@ export interface SelectedCell {
   kelasId: string
 }
 
+export type DialogVariant = 'info' | 'warning' | 'danger'
+
+export interface AppDialogState {
+  isOpen: boolean
+  mode: 'alert' | 'confirm'
+  title: string
+  message: string
+  confirmLabel: string
+  cancelLabel: string
+  variant: DialogVariant
+}
+
+export interface ConfirmDialogOptions {
+  title?: string
+  confirmLabel?: string
+  cancelLabel?: string
+  variant?: DialogVariant
+}
+
 function getInitialTheme(): ThemeMode {
   if (typeof localStorage !== 'undefined') {
     const saved = localStorage.getItem('js_theme')
@@ -33,6 +52,62 @@ export const useUiStore = defineStore('ui', () => {
   const isRightSidebarOpen = ref<boolean>(true)
   const selectedHariFilter = ref<string>('all')
   const gridDensity = ref<'compact' | 'large'>('compact')
+  const dialog = ref<AppDialogState>({
+    isOpen: false,
+    mode: 'alert',
+    title: '',
+    message: '',
+    confirmLabel: 'Ya, Lanjutkan',
+    cancelLabel: 'Batal',
+    variant: 'info'
+  })
+  let dialogResolver: ((result: boolean) => void) | null = null
+
+  function resolveDialog(result: boolean): void {
+    dialog.value.isOpen = false
+    const resolver = dialogResolver
+    dialogResolver = null
+    resolver?.(result)
+  }
+
+  function showAlert(
+    message: string,
+    title = 'Informasi',
+    variant: DialogVariant = 'warning'
+  ): Promise<boolean> {
+    if (dialogResolver) dialogResolver(false)
+    dialog.value = {
+      isOpen: true,
+      mode: 'alert',
+      title,
+      message,
+      confirmLabel: 'Mengerti',
+      cancelLabel: 'Tutup',
+      variant
+    }
+    return new Promise<boolean>((resolve) => {
+      dialogResolver = resolve
+    })
+  }
+
+  function showConfirm(
+    message: string,
+    options: ConfirmDialogOptions = {}
+  ): Promise<boolean> {
+    if (dialogResolver) dialogResolver(false)
+    dialog.value = {
+      isOpen: true,
+      mode: 'confirm',
+      title: options.title || 'Konfirmasi',
+      message,
+      confirmLabel: options.confirmLabel || 'Ya, Lanjutkan',
+      cancelLabel: options.cancelLabel || 'Batal',
+      variant: options.variant || 'warning'
+    }
+    return new Promise<boolean>((resolve) => {
+      dialogResolver = resolve
+    })
+  }
 
   function toggleLeftSidebar(): void {
     isLeftSidebarCollapsed.value = !isLeftSidebarCollapsed.value
@@ -125,6 +200,7 @@ export const useUiStore = defineStore('ui', () => {
     isRightSidebarOpen,
     selectedHariFilter,
     gridDensity,
+    dialog,
     setTheme,
     initTheme,
     toggleTheme,
@@ -141,6 +217,9 @@ export const useUiStore = defineStore('ui', () => {
     setRightSidebarOpen,
     setSelectedHariFilter,
     setGridDensity,
-    toggleGridDensity
+    toggleGridDensity,
+    showAlert,
+    showConfirm,
+    resolveDialog
   }
 })

@@ -14,8 +14,10 @@ import { getGuruCode } from '@core/guru-codes'
 import { getTerpasangTotal as countTerpasangTotal } from '@core/load-calculator'
 import { validateRequiredField, validateTeamTeaching } from '@core/ui-validation'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useUiStore } from '../../stores/uiStore'
 
 const store = useScheduleStore()
+const uiStore = useUiStore()
 
 const isEditing = ref<boolean>(false)
 const formPenugasan = ref<{
@@ -117,15 +119,15 @@ function editPenugasan(a: Penugasan): void {
   isEditing.value = true
 }
 
-function savePenugasan(): void {
+async function savePenugasan(): Promise<void> {
   const kodeError = validateRequiredField(formPenugasan.value.kode, 'Kode mapel')
   if (kodeError) {
-    alert(kodeError)
+    await uiStore.showAlert(kodeError, 'Validasi Penugasan', 'warning')
     return
   }
   const mapelError = validateRequiredField(formPenugasan.value.mapel, 'Mata pelajaran')
   if (mapelError) {
-    alert(mapelError)
+    await uiStore.showAlert(mapelError, 'Validasi Penugasan', 'warning')
     return
   }
 
@@ -133,12 +135,12 @@ function savePenugasan(): void {
   if (formPenugasan.value.is_team_teaching) {
     const teamError = validateTeamTeaching(formPenugasan.value.guru_ids || [])
     if (teamError) {
-      alert(teamError)
+      await uiStore.showAlert(teamError, 'Validasi Penugasan', 'warning')
       return
     }
   } else {
     if (!formPenugasan.value.guru_id) {
-      alert('Harap pilih guru pengampu terlebih dahulu.')
+      await uiStore.showAlert('Harap pilih guru pengampu terlebih dahulu.', 'Validasi Penugasan', 'warning')
       return
     }
   }
@@ -175,8 +177,13 @@ function savePenugasan(): void {
   isEditing.value = false
 }
 
-function removePenugasan(penugasanId: string): void {
-  if (confirm('Yakin ingin menghapus penugasan ini?')) {
+async function removePenugasan(penugasanId: string): Promise<void> {
+  const confirmed = await uiStore.showConfirm('Yakin ingin menghapus penugasan ini?', {
+    title: 'Hapus Penugasan',
+    confirmLabel: 'Ya, Hapus',
+    variant: 'danger'
+  })
+  if (confirmed) {
     store.deletePenugasan(penugasanId)
   }
 }

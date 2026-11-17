@@ -75,4 +75,30 @@ describe('default-presets', () => {
     expect(sesiPertama.jp).toEqual([1])
     expect(sesiPertama.waktu).toHaveLength(1)
   })
+
+  it('mendukung 7 hari aktif termasuk hari Minggu', () => {
+    const sw = getPresetStrukturWaktu('SMP', 7)
+    expect(sw.pola_hari).toBe(7)
+    expect(Object.keys(sw.hari)).toHaveLength(7)
+    expect(sw.hari['Minggu'].aktif).toBe(true)
+    expect(sw.hari['Minggu'].slots.length).toBeGreaterThan(0)
+  })
+
+  it('mendukung hari belajar dan hari libur fleksibel (mis. Minggu aktif, Jumat atau Sabtu libur)', () => {
+    const swAhadKamis = getPresetStrukturWaktu('SMP', 5, {
+      hariAktif: ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis']
+    })
+    expect(swAhadKamis.pola_hari).toBe(5)
+    expect(swAhadKamis.hari['Minggu'].aktif).toBe(true)
+    expect(swAhadKamis.hari['Senin'].aktif).toBe(true)
+    expect(swAhadKamis.hari['Jumat'].aktif).toBe(false)
+    expect(swAhadKamis.hari['Sabtu'].aktif).toBe(false)
+
+    const swLiburJumat = getPresetStrukturWaktu('SMA', 6, {
+      hariAktif: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Sabtu', 'Minggu']
+    })
+    expect(swLiburJumat.pola_hari).toBe(6)
+    expect(swLiburJumat.hari['Jumat'].aktif).toBe(false)
+    expect(swLiburJumat.hari['Minggu'].aktif).toBe(true)
+  })
 })

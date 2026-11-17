@@ -12,7 +12,7 @@ import {
   Sparkles
 } from 'lucide-vue-next'
 import { TingkatTingkat, SemesterTipe } from '@core/types'
-import { PresetWaktuOptions } from '@core/default-presets'
+import { HARI_5, HARI_6, HARI_7, PresetWaktuOptions } from '@core/default-presets'
 import {
   WizardProfileData,
   validateProfileStep,
@@ -20,6 +20,7 @@ import {
 } from '@core/wizard-builder'
 import { shouldConfirmProjectReplacement } from '@core/project-safety'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useUiStore } from '../../stores/uiStore'
 
 const props = defineProps<{
   modelValue: boolean
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const scheduleStore = useScheduleStore()
+const uiStore = useUiStore()
 
 const currentStep = ref<number>(1)
 const validationErrors = ref<string[]>([])
@@ -51,8 +53,31 @@ const profile = ref<WizardProfileData>({
   ttd_base64: ''
 })
 
-const polaHari = ref<5 | 6>(5)
+const polaMode = ref<'5' | '6' | 'custom'>('5')
+const selectedHariAktif = ref<string[]>([...HARI_5])
+const polaHari = computed(() => selectedHariAktif.value.length)
 const presetJenjang = ref<TingkatTingkat>('SMP')
+
+function selectPolaMode(mode: '5' | '6' | 'custom'): void {
+  polaMode.value = mode
+  if (mode === '5') selectedHariAktif.value = [...HARI_5]
+  else if (mode === '6') selectedHariAktif.value = [...HARI_6]
+}
+
+function applyHariPreset(days: string[]): void {
+  polaMode.value = 'custom'
+  selectedHariAktif.value = HARI_7.filter((h) => days.includes(h))
+}
+
+function toggleHariAktif(hari: string): void {
+  polaMode.value = 'custom'
+  const exists = selectedHariAktif.value.includes(hari)
+  if (exists && selectedHariAktif.value.length <= 1) return
+  const next = exists
+    ? selectedHariAktif.value.filter((item) => item !== hari)
+    : [...selectedHariAktif.value, hari]
+  selectedHariAktif.value = HARI_7.filter((item) => next.includes(item))
+}
 const customWaktu = ref({
   durasiJP: 40,
   blokPerHari: 4,
@@ -129,17 +154,32 @@ function prevStep(): void {
   }
 }
 
-function finishWizard(): void {
+async function finishWizard(): Promise<void> {
   if (
     shouldConfirmProjectReplacement(scheduleStore.proyek, scheduleStore.filePath, scheduleStore.dirty) &&
-    !window.confirm('Panduan penyiapan akan mengganti proyek yang sedang dibuka. Data jadwal lama tidak ikut dibawa. Lanjutkan?')
-  ) return
+    !(await uiStore.showConfirm(
+      'Panduan penyiapan akan mengganti proyek yang sedang dibuka. Data jadwal lama tidak ikut dibawa. Lanjutkan?',
+      {
+        title: 'Buat Proyek Baru',
+        confirmLabel: 'Ya, Buat Proyek'
+      }
+    ))
+  ) {
+    return
+  }
+
+  const baseOptions: PresetWaktuOptions =
+    presetJenjang.value === 'LAINNYA' ? getCustomWaktuOptions() : {}
+  const waktuOptions: PresetWaktuOptions =
+    polaMode.value === 'custom'
+      ? { ...baseOptions, hariAktif: selectedHariAktif.value }
+      : baseOptions
 
   const newProject = buildProjectFromWizard(
     profile.value,
     polaHari.value,
     presetJenjang.value,
-    presetJenjang.value === 'LAINNYA' ? getCustomWaktuOptions() : {}
+    waktuOptions
   )
   scheduleStore.loadProjectData(newProject, null)
   emit('completed')
@@ -147,6 +187,21 @@ function finishWizard(): void {
 }
 
 function closeModal(): void {
+  emit('update:modelValue', false)
+}
+
+async function loadDemoProject(): Promise<void> {
+  if (
+    shouldConfirmProjectReplacement(scheduleStore.proyek, scheduleStore.filePath, scheduleStore.dirty) &&
+    !(await uiStore.showConfirm('Data demonstrasi akan mengganti proyek yang sedang dibuka. Lanjutkan?', {
+      title: 'Muat Data Demonstrasi',
+      confirmLabel: 'Ya, Muat Data Demo'
+    }))
+  ) {
+    return
+  }
+  scheduleStore.loadDummyProject()
+  emit('completed')
   emit('update:modelValue', false)
 }
 
@@ -398,79 +453,144 @@ const steps = [
         <!-- Step 2: Pola Hari Belajar -->
         <div v-if="currentStep === 2" class="space-y-4">
           <div class="text-sm text-slate-600 dark:text-slate-300 mb-2">
-            Pilih sistem hari belajar mingguan yang berlaku di lembaga Anda:
+            Pilih sistem hari belajar mingguan atau atur hari aktif & hari libur secara fleksibel (termasuk hari Minggu):
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <!-- Pilihan 5 Hari -->
             <div
-              @click="polaHari = 5"
+              @click="selectPolaMode('5')"
               :class="[
-                'cursor-pointer rounded-2xl border p-5 transition-all',
-                polaHari === 5
+                'cursor-pointer rounded-2xl border p-4 transition-all',
+                polaMode === '5'
                   ? 'border-emerald-500 bg-emerald-50/70 shadow-md shadow-emerald-500/10 dark:bg-emerald-500/10 dark:shadow-emerald-500/10'
                   : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700'
               ]"
             >
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-base font-semibold text-slate-900 dark:text-slate-100">5 Hari Kerja</span>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">5 Hari (Sen–Jum)</span>
                 <span
                   :class="[
                     'h-5 w-5 rounded-full border flex items-center justify-center text-xs',
-                    polaHari === 5
+                    polaMode === '5'
                       ? 'border-emerald-500 bg-emerald-500 text-slate-950 font-bold'
                       : 'border-slate-300 dark:border-slate-700'
                   ]"
                 >
-                  <span v-if="polaHari === 5">✓</span>
+                  <span v-if="polaMode === '5'">✓</span>
                 </span>
               </div>
-              <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                Senin sampai dengan Jumat. Cocok untuk lembaga dengan pola belajar 5 hari kerja.
+              <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Senin sampai Jumat, libur Sabtu & Minggu.
               </p>
-              <div class="flex flex-wrap gap-1.5">
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Senin</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Selasa</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Rabu</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Kamis</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Jumat</span>
-              </div>
             </div>
 
             <!-- Pilihan 6 Hari -->
             <div
-              @click="polaHari = 6"
+              @click="selectPolaMode('6')"
               :class="[
-                'cursor-pointer rounded-2xl border p-5 transition-all',
-                polaHari === 6
+                'cursor-pointer rounded-2xl border p-4 transition-all',
+                polaMode === '6'
                   ? 'border-emerald-500 bg-emerald-50/70 shadow-md shadow-emerald-500/10 dark:bg-emerald-500/10 dark:shadow-emerald-500/10'
                   : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700'
               ]"
             >
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-base font-semibold text-slate-900 dark:text-slate-100">6 Hari Kerja</span>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">6 Hari (Sen–Sab)</span>
                 <span
                   :class="[
                     'h-5 w-5 rounded-full border flex items-center justify-center text-xs',
-                    polaHari === 6
+                    polaMode === '6'
                       ? 'border-emerald-500 bg-emerald-500 text-slate-950 font-bold'
                       : 'border-slate-300 dark:border-slate-700'
                   ]"
                 >
-                  <span v-if="polaHari === 6">✓</span>
+                  <span v-if="polaMode === '6'">✓</span>
                 </span>
               </div>
-              <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                Senin sampai dengan Sabtu. Cocok untuk madrasah, lembaga swasta, atau program berasrama.
+              <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Senin sampai Sabtu, libur hari Minggu.
               </p>
-              <div class="flex flex-wrap gap-1.5">
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Senin</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Selasa</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Rabu</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Kamis</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Jumat</span>
-                <span class="rounded bg-slate-200/80 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">Sabtu</span>
+            </div>
+
+            <!-- Pilihan Fleksibel / Kustom -->
+            <div
+              @click="selectPolaMode('custom')"
+              :class="[
+                'cursor-pointer rounded-2xl border p-4 transition-all',
+                polaMode === 'custom'
+                  ? 'border-emerald-500 bg-emerald-50/70 shadow-md shadow-emerald-500/10 dark:bg-emerald-500/10 dark:shadow-emerald-500/10'
+                  : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700'
+              ]"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">Fleksibel / Kustom</span>
+                <span
+                  :class="[
+                    'h-5 w-5 rounded-full border flex items-center justify-center text-xs',
+                    polaMode === 'custom'
+                      ? 'border-emerald-500 bg-emerald-500 text-slate-950 font-bold'
+                      : 'border-slate-300 dark:border-slate-700'
+                  ]"
+                >
+                  <span v-if="polaMode === 'custom'">✓</span>
+                </span>
               </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Aktifkan hari Minggu atau atur hari libur sesuai kebijakan lembaga.
+              </p>
+            </div>
+          </div>
+
+          <!-- Pemilih Hari Aktif & Libur -->
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/60 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                Hari Belajar Aktif ({{ selectedHariAktif.length }} hari aktif, {{ 7 - selectedHariAktif.length }} hari libur):
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  @click="applyHariPreset(['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis'])"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                >
+                  Libur Jum–Sab (Minggu–Kam)
+                </button>
+                <button
+                  type="button"
+                  @click="applyHariPreset(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Sabtu', 'Minggu'])"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                >
+                  Libur Jumat (6 Hari)
+                </button>
+                <button
+                  type="button"
+                  @click="applyHariPreset(HARI_7)"
+                  class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                >
+                  7 Hari Penuh
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-7 gap-2">
+              <button
+                v-for="hari in HARI_7"
+                :key="hari"
+                type="button"
+                @click="toggleHariAktif(hari)"
+                :class="[
+                  'flex flex-col items-center justify-center rounded-xl border py-2.5 px-1 text-xs font-semibold transition-all',
+                  selectedHariAktif.includes(hari)
+                    ? 'border-emerald-500 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'border-slate-200 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500'
+                ]"
+              >
+                <span>{{ hari }}</span>
+                <span class="mt-0.5 text-[10px] font-normal">
+                  {{ selectedHariAktif.includes(hari) ? 'Aktif' : 'Libur' }}
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -577,7 +697,7 @@ const steps = [
 
       <!-- Footer Buttons -->
       <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-950/80">
-        <div>
+        <div class="flex items-center space-x-2">
           <button
             v-if="currentStep > 1"
             type="button"
@@ -586,6 +706,16 @@ const steps = [
           >
             <ChevronLeft class="h-4 w-4" />
             <span>Sebelumnya</span>
+          </button>
+
+          <button
+            type="button"
+            @click="loadDemoProject"
+            class="flex items-center space-x-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 transition-colors"
+            title="Isi langsung dengan data demonstrasi lengkap (12 guru, 6 kelas, 12 mapel)"
+          >
+            <Sparkles class="h-3.5 w-3.5" />
+            <span>Muat Data Demo</span>
           </button>
         </div>
 

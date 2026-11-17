@@ -11,8 +11,7 @@ import {
   Printer,
   Sun,
   Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Menu,
   ChevronLeft,
   ChevronRight,
   ExternalLink
@@ -37,6 +36,7 @@ import PengaturanTab from './components/master/PengaturanTab.vue'
 import SesiKbmTab from './components/master/SesiKbmTab.vue'
 import ExportPreviewModal from './components/export/ExportPreviewModal.vue'
 import BreadcrumbHeader from './components/common/BreadcrumbHeader.vue'
+import AppDialogModal from './components/common/AppDialogModal.vue'
 
 const store = useScheduleStore()
 const uiStore = useUiStore()
@@ -143,7 +143,10 @@ async function handleOpenFile(): Promise<void> {
       if (res && res.data) {
         if (
           shouldConfirmProjectReplacement(store.proyek, store.filePath, store.dirty) &&
-          !window.confirm('Buka berkas baru akan mengganti proyek yang sedang dibuka. Lanjutkan?')
+          !(await uiStore.showConfirm('Buka berkas baru akan mengganti proyek yang sedang dibuka. Lanjutkan?', {
+            title: 'Buka Berkas Proyek',
+            confirmLabel: 'Ya, Buka Berkas'
+          }))
         ) return
         store.loadProjectData(res.data, res.filePath)
         showNotification('✓ Berkas berhasil dimuat')
@@ -152,7 +155,7 @@ async function handleOpenFile(): Promise<void> {
       showNotification('Fitur berkas aktif pada mode aplikasi desktop Electron')
     }
   } catch (err: any) {
-    alert(`Gagal membuka berkas: ${err.message}`)
+    await uiStore.showAlert(`Gagal membuka berkas: ${err.message}`, 'Gagal Membuka Berkas', 'danger')
   }
 }
 
@@ -176,15 +179,19 @@ async function handleSaveFile(): Promise<void> {
       showNotification('Fitur simpan aktif pada mode desktop Electron')
     }
   } catch (err: any) {
-    alert(`Gagal menyimpan berkas: ${err.message}`)
+    await uiStore.showAlert(`Gagal menyimpan berkas: ${err.message}`, 'Gagal Menyimpan Berkas', 'danger')
   }
 }
 
-function handleRefresh(): void {
-  const canRefresh = shouldRefreshRenderer(
-    store.dirty,
-    () => window.confirm('Ada perubahan yang belum disimpan. Tetap muat ulang tampilan aplikasi?')
-  )
+async function handleRefresh(): Promise<void> {
+  let confirmed = true
+  if (store.dirty) {
+    confirmed = await uiStore.showConfirm(
+      'Ada perubahan yang belum disimpan. Tetap muat ulang tampilan aplikasi?',
+      { title: 'Muat Ulang Aplikasi', confirmLabel: 'Tetap Muat Ulang' }
+    )
+  }
+  const canRefresh = shouldRefreshRenderer(store.dirty, () => confirmed)
   if (!canRefresh) return
 
   const saved = saveRefreshSnapshot({
@@ -193,7 +200,11 @@ function handleRefresh(): void {
     dirty: store.dirty
   })
   if (!saved) {
-    alert('Refresh dibatalkan karena state proyek tidak dapat diamankan di memori sesi.')
+    await uiStore.showAlert(
+      'Refresh dibatalkan karena state proyek tidak dapat diamankan di memori sesi.',
+      'Refresh Dibatalkan',
+      'danger'
+    )
     return
   }
   window.location.reload()
@@ -214,7 +225,7 @@ async function handleExportExcel(): Promise<void> {
     }
   } catch (err: any) {
     isExporting.value = false
-    alert(`Gagal ekspor Excel: ${err.message}`)
+    await uiStore.showAlert(`Gagal ekspor Excel: ${err.message}`, 'Gagal Ekspor Excel', 'danger')
   }
 }
 
@@ -233,7 +244,7 @@ async function handlePrintPdf(): Promise<void> {
     }
   } catch (err: any) {
     isExporting.value = false
-    alert(`Gagal mencetak PDF: ${err.message}`)
+    await uiStore.showAlert(`Gagal mencetak PDF: ${err.message}`, 'Gagal Cetak PDF', 'danger')
   }
 }
 
@@ -313,51 +324,53 @@ onUnmounted(() => {
     <!-- Left Navigation Sidebar -->
     <aside
       :class="[
-        'relative flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 transition-all duration-200 ease-in-out shrink-0 z-20',
+        'relative flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 transition-[width] duration-200 ease-in-out shrink-0 z-20',
         uiStore.isLeftSidebarCollapsed ? 'w-16' : 'w-64'
       ]"
     >
-      <!-- Header Sidebar: Expanded Mode (Logo Lembaga + Info) -->
+      <!-- Header Sidebar: Expanded Mode (Logo Lembaga + Info + Tombol Hamburger) -->
       <div
         v-if="!uiStore.isLeftSidebarCollapsed"
-        class="border-b border-slate-200 dark:border-slate-800 p-3 space-y-2.5 shrink-0 transition-all"
+        class="border-b border-slate-200 dark:border-slate-800 p-3 shrink-0 transition-all"
       >
-        <div class="flex items-center space-x-2.5 min-w-0">
-          <!-- Logo lembaga responsif -->
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
-            <img
-              :src="activeLogoUrl"
-              :alt="schoolLogoUrl ? 'Logo Lembaga' : 'Logo Jadwal Pendidikan'"
-              class="h-full w-full object-contain p-1"
-            />
-          </div>
-
-          <!-- Info nama lembaga dan periode -->
-          <div class="min-w-0 flex-1 truncate">
-            <div class="flex items-center space-x-1.5">
-              <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
-                {{ store.proyek.meta.nama_sekolah || APP_NAME }}
-              </span>
-              <span
-                v-if="store.dirty"
-                class="h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse"
-                title="Ada perubahan belum disimpan"
+        <div class="flex items-center justify-between gap-2 min-w-0">
+          <div class="flex items-center space-x-2.5 min-w-0 flex-1">
+            <!-- Logo lembaga responsif -->
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+              <img
+                :src="activeLogoUrl"
+                :alt="schoolLogoUrl ? 'Logo Lembaga' : 'Logo Jadwal Pendidikan'"
+                class="h-full w-full object-contain p-1"
               />
             </div>
-            <p class="truncate text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-              {{ store.proyek.meta.tahun_pelajaran || '2026/2027' }} • Sem. {{ store.proyek.meta.semester || 'GANJIL' }}
-            </p>
-          </div>
-        </div>
 
-        <!-- Tombol Toggle Minimalis Tunggal di Bawah Logo (Expanded Mode) -->
-        <div class="flex items-center justify-center pt-0.5">
+            <!-- Info nama lembaga dan periode -->
+            <div class="min-w-0 flex-1 truncate">
+              <div class="flex items-center space-x-1.5">
+                <span class="truncate text-xs font-bold text-slate-900 dark:text-slate-100" :title="store.proyek.meta.nama_sekolah">
+                  {{ store.proyek.meta.nama_sekolah || APP_NAME }}
+                </span>
+                <span
+                  v-if="store.dirty"
+                  class="h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse"
+                  title="Ada perubahan belum disimpan"
+                />
+              </div>
+              <p class="truncate text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                {{ store.proyek.meta.tahun_pelajaran || '2026/2027' }} • Sem. {{ store.proyek.meta.semester || 'GANJIL' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Tombol Hamburger Toggle (Expanded Mode) -->
           <button
+            type="button"
             @click="uiStore.toggleLeftSidebar"
-            class="group flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900/80 dark:hover:bg-emerald-500/15 text-slate-400 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-800 transition-all shadow-2xs hover:scale-105"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900/80 dark:hover:bg-emerald-500/15 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-800 transition-colors"
             title="Ciutkan Sidebar (Ctrl+B)"
+            aria-label="Ciutkan Sidebar"
           >
-            <PanelLeftClose class="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+            <Menu class="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -365,8 +378,19 @@ onUnmounted(() => {
       <!-- Header Sidebar: Collapsed Mode -->
       <div
         v-else
-        class="border-b border-slate-200 dark:border-slate-800 p-2.5 flex flex-col items-center space-y-2 shrink-0 transition-all"
+        class="border-b border-slate-200 dark:border-slate-800 p-2.5 flex flex-col items-center space-y-2.5 shrink-0 transition-all"
       >
+        <!-- Tombol Hamburger Toggle (Collapsed Mode) -->
+        <button
+          type="button"
+          @click="uiStore.toggleLeftSidebar"
+          class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900/80 dark:hover:bg-emerald-500/15 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-800 transition-colors"
+          title="Buka Sidebar (Ctrl+B)"
+          aria-label="Buka Sidebar"
+        >
+          <Menu class="h-4 w-4" />
+        </button>
+
         <!-- Logo lembaga responsif -->
         <div
           class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs transition-all duration-200"
@@ -378,15 +402,6 @@ onUnmounted(() => {
             class="h-full w-full object-contain p-0.5"
           />
         </div>
-
-        <!-- Tombol Toggle Minimalis Tunggal di Bawah Logo (Collapsed Mode) -->
-        <button
-          @click="uiStore.toggleLeftSidebar"
-          class="group flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 hover:bg-emerald-50 dark:bg-slate-900/80 dark:hover:bg-emerald-500/15 text-slate-400 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-800 transition-all shadow-2xs hover:scale-105"
-          title="Buka Sidebar (Ctrl+B)"
-        >
-          <PanelLeftOpen class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </button>
       </div>
 
 
@@ -577,6 +592,9 @@ onUnmounted(() => {
       @export-pdf="handlePrintPdf"
       @export-excel="handleExportExcel"
     />
+
+    <!-- Dialog Konfirmasi & Peringatan Terpusat -->
+    <AppDialogModal />
   </div>
 </template>
 

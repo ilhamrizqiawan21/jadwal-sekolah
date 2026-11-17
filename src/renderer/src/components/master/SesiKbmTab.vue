@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
 import { SlotJam, SlotTipe, StrukturWaktu } from '@core/types'
+import { HARI_7 } from '@core/default-presets'
 import { buildSlotTiming, createSlotId, getDefaultSlotLabel, validateHariSlots } from '@core/session-config'
 
 interface DraftSlot {
@@ -91,6 +92,7 @@ watch(
 )
 
 const hariNames = computed(() => Object.keys(drafts.value))
+const missingDays = computed(() => HARI_7.filter((h) => !drafts.value[h]))
 const currentHari = computed(() => drafts.value[selectedHari.value])
 const currentHariIssues = computed(() => {
   if (!currentHari.value) return []
@@ -122,11 +124,36 @@ function buildStruktur(): StrukturWaktu {
   for (const [hariName, draft] of Object.entries(drafts.value)) {
     hari[hariName] = toHari(draft)
   }
+  const activeCount = Object.values(hari).filter((item) => item.aktif).length
   return {
     ...struktur,
+    pola_hari: Math.max(1, activeCount),
     durasi_jp_menit: Math.max(1, Math.round(durasiJpMenit.value)),
     hari
   }
+}
+
+function addMissingHari(hariName: string): void {
+  if (drafts.value[hariName]) return
+  const template = currentHari.value || Object.values(drafts.value)[0]
+  const slots: DraftSlot[] = template
+    ? template.slots.map((slot) => ({ ...slot }))
+    : [
+        {
+          id: 'B1',
+          tipe: 'kbm',
+          label: '',
+          mulai: '07.00',
+          selesai: '08.20',
+          jumlahJp: 2
+        }
+      ]
+  drafts.value[hariName] = {
+    aktif: true,
+    judul: hariName.toUpperCase(),
+    slots
+  }
+  selectedHari.value = hariName
 }
 
 function saveSessions(): void {
@@ -266,11 +293,25 @@ function tipeLabel(tipe: SlotTipe): string {
             <span :class="drafts[hariName].aktif ? 'text-emerald-500' : 'text-slate-400'">{{ drafts[hariName].aktif ? 'Aktif' : 'Libur' }}</span>
           </button>
         </div>
-        <div class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+        <div class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800 space-y-3">
           <label for="hari-aktif" class="flex items-center gap-2 px-2 text-xs text-slate-600 dark:text-slate-300">
             <input v-if="currentHari" id="hari-aktif" v-model="currentHari.aktif" type="checkbox" class="accent-emerald-600" />
             Hari ini aktif digunakan
           </label>
+          <div v-if="missingDays.length > 0" class="px-2">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Tambah Hari</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="day in missingDays"
+                :key="day"
+                type="button"
+                @click="addMissingHari(day)"
+                class="rounded-md border border-dashed border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-700 dark:text-slate-300"
+              >
+                + {{ day }}
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 

@@ -17,8 +17,10 @@ import { getGuruCode } from '@core/guru-codes'
 import { validateRequiredField } from '@core/ui-validation'
 import { getSlotOperatorLabel } from '@core/session-config'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useUiStore } from '../../stores/uiStore'
 
 const store = useScheduleStore()
+const uiStore = useUiStore()
 
 const selectedGuruId = ref<string | null>(store.proyek.master.guru[0]?.id || null)
 const isEditing = ref<boolean>(false)
@@ -126,10 +128,10 @@ function editGuru(guru: Guru): void {
   selectedGuruId.value = guru.id
 }
 
-function saveGuru(): void {
+async function saveGuru(): Promise<void> {
   const namaError = validateRequiredField(formGuru.value.nama, 'Nama guru')
   if (namaError) {
-    alert(namaError)
+    await uiStore.showAlert(namaError, 'Validasi Data Guru', 'warning')
     return
   }
 
@@ -159,8 +161,16 @@ function saveGuru(): void {
   isEditing.value = false
 }
 
-function removeGuru(guruId: string): void {
-  if (confirm('Yakin ingin menghapus guru ini? Seluruh penugasan terkait akan terpengaruh.')) {
+async function removeGuru(guruId: string): Promise<void> {
+  const confirmed = await uiStore.showConfirm(
+    'Yakin ingin menghapus guru ini? Seluruh penugasan terkait akan terpengaruh.',
+    {
+      title: 'Hapus Data Guru',
+      confirmLabel: 'Ya, Hapus',
+      variant: 'danger'
+    }
+  )
+  if (confirmed) {
     store.deleteGuru(guruId)
     if (selectedGuruId.value === guruId) {
       selectedGuruId.value = store.proyek.master.guru[0]?.id || null
@@ -197,12 +207,19 @@ function isSlotUnavailable(hari: string, slotId: string): boolean {
   return activeGuru.value.tidak_bisa[hari]?.includes(slotId) || false
 }
 
-function setAllDayUnavailable(hari: string): void {
+async function setAllDayUnavailable(hari: string): Promise<void> {
   if (!activeGuru.value) return
   const dayData = store.proyek.struktur_waktu.hari[hari]
   if (!dayData) return
 
-  if (!window.confirm(`Tandai semua sesi KBM hari ${hari} sebagai berhalangan untuk ${activeGuru.value.nama}?`)) return
+  const confirmed = await uiStore.showConfirm(
+    `Tandai semua sesi KBM hari ${hari} sebagai berhalangan untuk ${activeGuru.value.nama}?`,
+    {
+      title: 'Tandai Izin Seharian',
+      confirmLabel: 'Ya, Tandai'
+    }
+  )
+  if (!confirmed) return
 
   const kbmSlotIds = dayData.slots.filter((s) => s.tipe === 'kbm').map((s) => s.id)
   const tidakBisa = { ...(activeGuru.value.tidak_bisa || {}) }
@@ -333,9 +350,9 @@ function clearDayUnavailable(hari: string): void {
       </div>
     </div>
 
-    <!-- Kolom Kanan: Form Edit / Matriks Ketersediaan Guru -->
+    <!-- Kolom Kanan: Matriks Ketersediaan Guru -->
     <div class="flex flex-1 flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60 dark:shadow-lg overflow-hidden">
-      <!-- Header Matriks / Form -->
+      <!-- Header Matriks -->
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-3.5">
         <div v-if="activeGuru">
           <div class="flex items-center space-x-2">
@@ -354,18 +371,12 @@ function clearDayUnavailable(hari: string): void {
             Matriks ketersediaan jam mengajar (klik sel untuk menandai jam berhalangan / izin)
           </p>
         </div>
-        <div v-else-if="isEditing">
-          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
-            {{ store.proyek.master.guru.some(g => g.id === formGuru.id) ? 'Edit Data Guru' : 'Tambah Guru Baru' }}
-          </h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400">Masukkan identitas lengkap guru</p>
-        </div>
         <div v-else>
           <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Pilih Guru</h3>
           <p class="text-xs text-slate-500 dark:text-slate-400">Pilih salah satu guru di kolom kiri untuk mengatur jadwal izinnya</p>
         </div>
 
-        <div v-if="activeGuru && !isEditing" class="flex items-center space-x-2">
+        <div v-if="activeGuru" class="flex items-center space-x-2">
           <button
             type="button"
             @click="editGuru(activeGuru)"
@@ -377,79 +388,8 @@ function clearDayUnavailable(hari: string): void {
         </div>
       </div>
 
-      <!-- Body: Jika Sedang Mode Edit/Tambah Guru -->
-      <div v-if="isEditing" class="p-6">
-        <div class="max-w-md space-y-4">
-          <div>
-            <label for="guru-name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Lengkap & Gelar *</label>
-            <input
-              id="guru-name"
-              v-model="formGuru.nama"
-              type="text"
-              placeholder="Contoh: Drs. H. Ahmad Dahlan, M.Pd."
-              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            />
-          </div>
-
-          <div>
-            <label for="guru-nip" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">NIP / NUPTK</label>
-            <input
-              id="guru-nip"
-              v-model="formGuru.nip"
-              type="text"
-              placeholder="19xxxxxxxxxxxxxx (opsional)"
-              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label for="guru-code" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Guru</label>
-              <input
-                id="guru-code"
-                v-model="formGuru.kode_prefiks"
-                type="text"
-                placeholder="Contoh: G01, GURU-MAT, BIO"
-                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              />
-            </div>
-
-            <div>
-              <label for="guru-color" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Warna Penanda</label>
-              <div class="flex items-center space-x-2">
-                <input
-                  id="guru-color"
-                  v-model="formGuru.warna"
-                  type="color"
-                  class="h-9 w-12 rounded cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5"
-                />
-                <span class="text-xs font-mono text-slate-500 dark:text-slate-400">{{ formGuru.warna }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center space-x-2 pt-2">
-            <button
-              type="button"
-              @click="saveGuru"
-              class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition-colors shadow-md"
-            >
-              <Check class="h-3.5 w-3.5" />
-              <span>Simpan Data</span>
-            </button>
-            <button
-              type="button"
-              @click="isEditing = false"
-              class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            >
-              Batal
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Body: Tampilan Matriks Ketersediaan Guru (Availability Matrix) -->
-      <div v-else-if="activeGuru" class="flex-1 overflow-y-auto p-6">
+      <div v-if="activeGuru" class="flex-1 overflow-y-auto p-6">
         <div class="mb-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div class="flex items-center space-x-4">
             <div class="flex items-center space-x-1.5">
@@ -539,10 +479,121 @@ function clearDayUnavailable(hari: string): void {
       </div>
 
       <!-- State Kosong: Belum Pilih Guru -->
-      <div v-else class="flex flex-1 items-center justify-center p-8 text-center text-xs text-slate-400 dark:text-slate-500">
+      <div v-else class="flex flex-1 items-center justify-center p-8 text-center text-xs text-slate-500 dark:text-slate-400">
         <div>
           <Calendar class="mx-auto h-8 w-8 text-slate-400 dark:text-slate-600 mb-2" />
           <p>Pilih salah satu guru di sebelah kiri untuk melihat dan menyunting matriks ketersediaan jam mengajarnya.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Overlay Tambah / Edit Data Guru -->
+    <div
+      v-if="isEditing"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="guru-modal-title"
+      tabindex="-1"
+      @keydown.esc="isEditing = false"
+    >
+      <div class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-950/70">
+          <div>
+            <h3 id="guru-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-100">
+              {{ store.proyek.master.guru.some(g => g.id === formGuru.id) ? 'Edit Data Guru' : 'Tambah Guru Baru' }}
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Masukkan identitas lengkap guru &amp; kode pengampu</p>
+          </div>
+          <button
+            type="button"
+            @click="isEditing = false"
+            class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="Tutup form guru"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </div>
+
+        <div class="space-y-4 p-6">
+          <div>
+            <label for="guru-name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Lengkap &amp; Gelar *</label>
+            <input
+              id="guru-name"
+              v-model="formGuru.nama"
+              type="text"
+              placeholder="Contoh: Drs. H. Ahmad Dahlan, M.Pd."
+              class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="guru-nip" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">NIP / NUPTK</label>
+              <input
+                id="guru-nip"
+                v-model="formGuru.nip"
+                type="text"
+                placeholder="19xxxxxxxxxxxxxx"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label for="guru-jabatan" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Jabatan / Peran</label>
+              <input
+                id="guru-jabatan"
+                v-model="formGuru.jabatan"
+                type="text"
+                placeholder="Contoh: Wali Kelas VII A"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="guru-code" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Guru</label>
+              <input
+                id="guru-code"
+                v-model="formGuru.kode_prefiks"
+                type="text"
+                placeholder="Contoh: G01, AF, BIO"
+                class="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label for="guru-color" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Warna Penanda</label>
+              <div class="flex items-center space-x-2">
+                <input
+                  id="guru-color"
+                  v-model="formGuru.warna"
+                  type="color"
+                  class="h-9 w-12 rounded cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5"
+                />
+                <span class="text-xs font-mono text-slate-500 dark:text-slate-400">{{ formGuru.warna }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 border-t border-slate-200 bg-slate-50/70 px-6 py-3.5 dark:border-slate-800 dark:bg-slate-950/60">
+          <button
+            type="button"
+            @click="isEditing = false"
+            class="rounded-lg px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            @click="saveGuru"
+            class="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors shadow-sm"
+          >
+            <Check class="h-3.5 w-3.5" />
+            <span>Simpan Data</span>
+          </button>
         </div>
       </div>
     </div>

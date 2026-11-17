@@ -15,6 +15,7 @@ import {
   FileDown
 } from 'lucide-vue-next'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useUiStore } from '../../stores/uiStore'
 import { getProjectSnapshot } from '../../utils/project-snapshot'
 import { TingkatTingkat, SemesterTipe } from '@core/types'
 import { shouldConfirmProjectReplacement } from '@core/project-safety'
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useScheduleStore()
+const uiStore = useUiStore()
 
 const meta = ref({
   nama_sekolah: store.proyek.meta.nama_sekolah || '',
@@ -154,14 +156,23 @@ async function handleOpenFile(): Promise<void> {
     if (window.api) {
       const res = await window.api.openFileDialog()
       if (res && res.data) {
+        if (
+          shouldConfirmProjectReplacement(store.proyek, store.filePath, store.dirty) &&
+          !(await uiStore.showConfirm('Buka berkas baru akan mengganti proyek yang sedang dibuka. Lanjutkan?', {
+            title: 'Buka Berkas Proyek',
+            confirmLabel: 'Ya, Buka Berkas'
+          }))
+        ) {
+          return
+        }
         store.loadProjectData(res.data, res.filePath)
         showFileMsg('✓ Berkas jadwal berhasil dimuat')
       }
     } else {
-      alert('Fitur buka berkas aktif pada mode aplikasi desktop')
+      await uiStore.showAlert('Fitur buka berkas aktif pada mode aplikasi desktop', 'Mode Desktop', 'info')
     }
   } catch (err: any) {
-    alert(`Gagal membuka berkas: ${err.message}`)
+    await uiStore.showAlert(`Gagal membuka berkas: ${err.message}`, 'Gagal Membuka Berkas', 'danger')
   }
 }
 
@@ -176,10 +187,10 @@ async function handleSaveFile(): Promise<void> {
         await handleSaveAsFile()
       }
     } else {
-      alert('Fitur simpan aktif pada mode desktop')
+      await uiStore.showAlert('Fitur simpan aktif pada mode desktop', 'Mode Desktop', 'info')
     }
   } catch (err: any) {
-    alert(`Gagal menyimpan berkas: ${err.message}`)
+    await uiStore.showAlert(`Gagal menyimpan berkas: ${err.message}`, 'Gagal Menyimpan Berkas', 'danger')
   }
 }
 
@@ -199,15 +210,23 @@ async function handleSaveAsFile(): Promise<void> {
       }
     }
   } catch (err: any) {
-    alert(`Gagal menyimpan berkas: ${err.message}`)
+    await uiStore.showAlert(`Gagal menyimpan berkas: ${err.message}`, 'Gagal Menyimpan Berkas', 'danger')
   }
 }
 
-function handleLoadDummyData(): void {
+async function handleLoadDummyData(): Promise<void> {
   if (
     shouldConfirmProjectReplacement(store.proyek, store.filePath, store.dirty) &&
-    !window.confirm('Data demonstrasi akan mengganti proyek yang sedang dibuka. Perubahan dan data lama akan ditutup. Lanjutkan?')
-  ) return
+    !(await uiStore.showConfirm(
+      'Data demonstrasi akan mengganti proyek yang sedang dibuka. Perubahan dan data lama akan ditutup. Lanjutkan?',
+      {
+        title: 'Muat Data Demonstrasi',
+        confirmLabel: 'Ya, Muat Data Demo'
+      }
+    ))
+  ) {
+    return
+  }
   store.loadDummyProject()
   showFileMsg('✓ Data demonstrasi berhasil dimuat')
 }

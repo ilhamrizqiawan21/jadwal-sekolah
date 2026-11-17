@@ -2,6 +2,7 @@ import { StrukturWaktu, TingkatTingkat, HariKBM, SlotJam } from './types'
 
 export const HARI_5 = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
 export const HARI_6 = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+export const HARI_7 = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
 function formatJam(menitSejakTengahMalam: number): string {
   const h = Math.floor(menitSejakTengahMalam / 60)
@@ -17,6 +18,7 @@ export interface PresetWaktuOptions {
   jedaSetelahBlok?: number[]
   durasiJedaMenit?: number
   tambahkanTutupJumat?: boolean
+  hariAktif?: string[]
 }
 
 function buildHariSlots(
@@ -97,7 +99,7 @@ function buildHariSlots(
 
 export function getPresetStrukturWaktu(
   jenjang: TingkatTingkat,
-  polaHari: 5 | 6 = 5,
+  polaHari: number = 5,
   options: PresetWaktuOptions = {}
 ): StrukturWaktu {
   let durasi = 40
@@ -121,7 +123,11 @@ export function getPresetStrukturWaktu(
   const tambahkanTutupJumat = options.tambahkanTutupJumat ?? true
   const jpPerSesi: 1 | 2 = options.jpPerSesi === 1 ? 1 : 2
 
-  const hariList = polaHari === 6 ? HARI_6 : HARI_5
+  const customAktif = options.hariAktif?.filter((h) => HARI_7.includes(h))
+  const hasCustomAktif = Boolean(customAktif && customAktif.length > 0)
+  const activeSet = hasCustomAktif ? new Set(customAktif) : null
+  const hariList = hasCustomAktif || polaHari === 7 ? HARI_7 : polaHari === 6 ? HARI_6 : HARI_5
+  const resolvedPolaHari = activeSet ? activeSet.size : polaHari === 7 ? 7 : polaHari === 6 ? 6 : 5
   const hariRecord: Record<string, HariKBM> = {}
 
   for (const h of hariList) {
@@ -130,7 +136,7 @@ export function getPresetStrukturWaktu(
     const blok = isJumat ? Math.max(2, blokPerHari - 1) : blokPerHari
 
     hariRecord[h] = {
-      aktif: true,
+      aktif: activeSet ? activeSet.has(h) : true,
       judul: h.toUpperCase(),
       slots: buildHariSlots(
         h,
@@ -147,7 +153,7 @@ export function getPresetStrukturWaktu(
   }
 
   return {
-    pola_hari: polaHari,
+    pola_hari: resolvedPolaHari,
     durasi_jp_menit: durasi,
     jp_per_sesi: jpPerSesi,
     hari: hariRecord

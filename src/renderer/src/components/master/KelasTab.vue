@@ -13,8 +13,10 @@ import {
 import { Kelas } from '@core/types'
 import { validateRequiredField } from '@core/ui-validation'
 import { useScheduleStore } from '../../stores/scheduleStore'
+import { useUiStore } from '../../stores/uiStore'
 
 const store = useScheduleStore()
+const uiStore = useUiStore()
 
 const isEditing = ref<boolean>(false)
 const formKelas = ref<{
@@ -87,10 +89,10 @@ function editKelas(k: Kelas): void {
   isEditing.value = true
 }
 
-function saveKelas(): void {
+async function saveKelas(): Promise<void> {
   const namaError = validateRequiredField(formKelas.value.nama, 'Nama rombel / kelas')
   if (namaError) {
-    alert(namaError)
+    await uiStore.showAlert(namaError, 'Validasi Kelas', 'warning')
     return
   }
 
@@ -115,8 +117,16 @@ function saveKelas(): void {
   isEditing.value = false
 }
 
-function removeKelas(kelasId: string): void {
-  if (confirm('Yakin ingin menghapus kelas ini? Seluruh data jadwal di kelas ini akan dihapus.')) {
+async function removeKelas(kelasId: string): Promise<void> {
+  const confirmed = await uiStore.showConfirm(
+    'Yakin ingin menghapus kelas ini? Seluruh data jadwal di kelas ini akan dihapus.',
+    {
+      title: 'Hapus Kelas',
+      confirmLabel: 'Ya, Hapus',
+      variant: 'danger'
+    }
+  )
+  if (confirmed) {
     store.deleteKelas(kelasId)
   }
 }

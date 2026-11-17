@@ -25,7 +25,7 @@ describe('Offline Integrity & Security Guard Rail (Fase 8 NFR)', () => {
     const forbiddenPatterns = [
       /fetch\s*\(/i,
       /axios\./i,
-      /https?:\/\/(?!localhost|127\.0\.0\.1)/i,
+      /https?:\/\/(?!localhost|127\.0\.0\.1|github\.com\/ilhamrizqiawan21\/jadwal-sekolah(?:['"\s]|$))/i,
       /WebSocket\s*\(/i
     ]
 

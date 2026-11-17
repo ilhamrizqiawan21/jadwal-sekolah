@@ -639,12 +639,12 @@ onUnmounted(() => {
 
 
         <!-- Segmented Tab Pemilih Hari (Fokus Harian) -->
-        <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+        <div class="flex flex-wrap items-center gap-0.5 rounded-xl bg-slate-200/70 p-0.5 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           <button
             type="button"
             @click="selectHariFilter('all')"
             :class="[
-              'rounded-lg px-2.5 py-1 text-xs font-semibold transition-all',
+              'rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors',
               uiStore.selectedHariFilter === 'all'
                 ? 'bg-white text-emerald-700 shadow-xs dark:bg-emerald-600 dark:text-white'
                 : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
@@ -660,7 +660,7 @@ onUnmounted(() => {
             :key="hari.nama"
             @click="selectHariFilter(hari.nama)"
             :class="[
-              'rounded-lg px-2.5 py-1 text-xs font-semibold transition-all capitalize',
+              'rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors capitalize',
               uiStore.selectedHariFilter.toLowerCase() === hari.nama.toLowerCase()
                 ? 'bg-white text-emerald-700 shadow-xs dark:bg-emerald-600 dark:text-white'
                 : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
